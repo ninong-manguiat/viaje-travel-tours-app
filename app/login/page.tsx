@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FirebaseError } from "firebase/app";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,9 @@ export default function LoginPage() {
       const token = await credential.user.getIdTokenResult(true);
       document.cookie = `viaje-role=${token.claims.role ?? "client"}; path=/; max-age=86400`;
       router.push(token.claims.role === "admin" ? "/admin" : "/dashboard");
-    } catch {
-      setMessage("Unable to sign in. Check credentials and Firebase config.");
+    } catch (error) {
+      const detail = error instanceof FirebaseError ? ` (${error.code})` : "";
+      setMessage(`Unable to sign in. Check credentials and Firebase config${detail}.`);
     }
   }
 

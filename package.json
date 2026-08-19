@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:qa": "node scripts/load-env.mjs qa next dev",
+    "dev:prod": "node scripts/load-env.mjs prod next dev",
     "build": "next build",
     "build:qa": "node scripts/load-env.mjs qa next build",
     "build:prod": "node scripts/load-env.mjs prod next build",
