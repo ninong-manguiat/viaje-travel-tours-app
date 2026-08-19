@@ -6,7 +6,7 @@ import type { TravelPackage } from "@/lib/types";
 
 export function PackageCard({ item }: { item: TravelPackage }) {
   return (
-    <article className="relative overflow-hidden rounded-[22px] border border-viaje-line bg-white shadow-[0_20px_40px_-28px_rgba(15,36,56,0.35)]">
+    <article className="relative overflow-hidden rounded-[8px] border border-viaje-line bg-white shadow-[0_20px_40px_-28px_rgba(15,36,56,0.35)]">
       <div className="relative h-[170px]">
         <img src={item.coverImageUrl} alt={item.title} className="h-full w-full object-cover" />
         <span className="absolute left-3.5 top-3.5 rounded-full bg-viaje-red px-3 py-1.5 text-[11px] font-bold text-white">Featured</span>

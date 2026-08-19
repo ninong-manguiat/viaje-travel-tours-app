@@ -17,6 +17,7 @@
     "deploy:prod": "node scripts/deploy.mjs prod",
     "validate:r2:qa": "node scripts/validate-r2-env.mjs qa",
     "validate:r2:prod": "node scripts/validate-r2-env.mjs prod",
+    "set-role": "node scripts/set-user-role.mjs",
     "version:minor": "node scripts/bump-version.mjs minor",
     "version:major": "node scripts/bump-version.mjs major"
   },
@@ -31,6 +32,7 @@
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-fast-marquee": "^1.6.5",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.23.8"

@@ -7,7 +7,7 @@ export default function ActivatePage({ params }: { params: { token: string } }) 
     <main className="grid min-h-screen md:grid-cols-2">
       <section className="flex items-center bg-viaje-navy p-10 text-white">
         <div>
-          <p className="font-semibold text-red-200">Invited by Viaje</p>
+          <p className="font-semibold text-viaje-red">Invited by Viaje</p>
           <h1 className="mt-3 text-4xl font-bold">Activate your travel account</h1>
           <p className="mt-4 text-slate-200">Token preview: {params.token}</p>
         </div>

@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen md:grid-cols-2">
       <section className="flex items-center bg-viaje-navy p-10 text-white">
-        <div><p className="font-semibold text-red-200">Welcome back</p><h1 className="mt-3 text-4xl font-bold">Viaje Travel and Tours</h1></div>
+        <div><p className="font-semibold text-viaje-red">Welcome back</p><h1 className="mt-3 text-4xl font-bold">Viaje Travel and Tours</h1></div>
       </section>
       <section className="flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -41,7 +41,7 @@ export default function LoginPage() {
             <form className="space-y-4" onSubmit={submit}>
               <Input type="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} />
               <Input type="password" placeholder="Password" value={password} onChange={(event) => setPassword(event.target.value)} />
-              {message && <p className="text-sm text-red-600">{message}</p>}
+              {message && <p className="text-sm text-viaje-red">{message}</p>}
               <Button className="w-full">Sign In</Button>
             </form>
           </CardContent>
