@@ -47,3 +47,16 @@ The deploy script:
 ## Domain
 
 The custom domain is configured in Firebase Hosting per environment/project. Once the domain is connected to the Firebase project, `npm run deploy:prod` publishes the current build to that production domain.
+
+## Cloudflare R2
+
+R2 stores package media, payment receipts, travel documents, generated PDFs, and CMS/site media.
+
+See [Cloudflare R2 Setup](./CLOUDFLARE_R2_SETUP.md) before enabling uploads or document workflows.
+
+Validate R2 environment values with:
+
+```bash
+npm run validate:r2:qa
+npm run validate:r2:prod
+```

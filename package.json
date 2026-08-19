@@ -13,6 +13,8 @@
     "deploy": "node scripts/deploy.mjs",
     "deploy:qa": "node scripts/deploy.mjs qa",
     "deploy:prod": "node scripts/deploy.mjs prod",
+    "validate:r2:qa": "node scripts/validate-r2-env.mjs qa",
+    "validate:r2:prod": "node scripts/validate-r2-env.mjs prod",
     "version:minor": "node scripts/bump-version.mjs minor",
     "version:major": "node scripts/bump-version.mjs major"
   },

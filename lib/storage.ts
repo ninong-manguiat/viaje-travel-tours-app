@@ -11,14 +11,28 @@ const bucketMap: Record<ViajeBucket, string | undefined> = {
   siteMedia: process.env.CLOUDFLARE_R2_SITE_MEDIA_BUCKET
 };
 
-export const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "",
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? ""
+let r2Client: S3Client | undefined;
+
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required R2 env var: ${name}`);
+  return value;
+}
+
+export function getR2Client() {
+  if (!r2Client) {
+    r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${requireEnv("CLOUDFLARE_R2_ACCOUNT_ID")}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: requireEnv("CLOUDFLARE_R2_ACCESS_KEY_ID"),
+        secretAccessKey: requireEnv("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
+      }
+    });
   }
-});
+
+  return r2Client;
+}
 
 function resolveBucket(bucket: ViajeBucket) {
   const name = bucketMap[bucket];
@@ -28,18 +42,18 @@ function resolveBucket(bucket: ViajeBucket) {
 
 export async function uploadFile(bucket: ViajeBucket, key: string, body: Buffer | Uint8Array | string, contentType?: string) {
   const Bucket = resolveBucket(bucket);
-  await r2.send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));
-  return `${process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL}/${Bucket}/${key}`;
+  await getR2Client().send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));
+  return `${requireEnv("CLOUDFLARE_R2_PUBLIC_BASE_URL")}/${Bucket}/${key}`;
 }
 
 export async function getSignedUrl(bucket: ViajeBucket, key: string, expiresIn = 600) {
-  return presign(r2, new GetObjectCommand({ Bucket: resolveBucket(bucket), Key: key }), { expiresIn });
+  return presign(getR2Client(), new GetObjectCommand({ Bucket: resolveBucket(bucket), Key: key }), { expiresIn });
 }
 
 export async function getSignedPutUrl(bucket: ViajeBucket, key: string, contentType: string, expiresIn = 600) {
-  return presign(r2, new PutObjectCommand({ Bucket: resolveBucket(bucket), Key: key, ContentType: contentType }), { expiresIn });
+  return presign(getR2Client(), new PutObjectCommand({ Bucket: resolveBucket(bucket), Key: key, ContentType: contentType }), { expiresIn });
 }
 
 export async function deleteFile(bucket: ViajeBucket, key: string) {
-  await r2.send(new DeleteObjectCommand({ Bucket: resolveBucket(bucket), Key: key }));
+  await getR2Client().send(new DeleteObjectCommand({ Bucket: resolveBucket(bucket), Key: key }));
 }
