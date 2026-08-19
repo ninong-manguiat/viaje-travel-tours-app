@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == "admin";
+    }
+
+    function isClientOwner() {
+      return signedIn() && resource.data.clientId == request.auth.uid;
+    }
+
+    function isClientOwnerOnCreate() {
+      return signedIn() && request.resource.data.clientId == request.auth.uid;
+    }
+
+    function statusChanged() {
+      return request.resource.data.diff(resource.data).changedKeys().hasAny(["status", "paymentStatus", "documentStatus"]);
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || (signedIn() && userId == request.auth.uid);
+      allow create: if isAdmin() || (signedIn() && userId == request.auth.uid && request.resource.data.role == "client");
+      allow update: if isAdmin() || (signedIn() && userId == request.auth.uid && !request.resource.data.diff(resource.data).changedKeys().hasAny(["role", "accountStatus"]));
+    }
+
+    match /packages/{packageId} {
+      allow read: if resource.data.status == "published" || isAdmin();
+      allow write: if isAdmin();
+      match /{sub=**} {
+        allow read: if get(/databases/$(database)/documents/packages/$(packageId)).data.status == "published" || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /websiteContent/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if isAdmin() || request.resource.data.source == "website";
+      allow read: if isAdmin() || isClientOwner();
+      allow update: if isAdmin() || (isClientOwner() && !statusChanged());
+      match /travelers/{travelerId} {
+        allow create: if isAdmin() || true;
+        allow read, update, delete: if isAdmin() || get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientId == request.auth.uid;
+      }
+    }
+
+    match /transactions/{transactionId} {
+      allow create: if isAdmin() || request.resource.data.source == "website";
+      allow read: if isAdmin() || isClientOwner();
+      allow update: if isAdmin() || (isClientOwner() && !statusChanged());
+    }
+
+    match /payments/{paymentId} {
+      allow create: if isAdmin() || request.resource.data.source == "website" || isClientOwnerOnCreate();
+      allow read: if isAdmin() || isClientOwner();
+      allow update: if isAdmin() || (isClientOwner() && !statusChanged());
+    }
+
+    match /documentChecklists/{checklistId} {
+      allow read: if isAdmin() || isClientOwner();
+      allow create, update, delete: if isAdmin();
+      match /documents/{documentId} {
+        allow read: if isAdmin() || get(/databases/$(database)/documents/documentChecklists/$(checklistId)).data.clientId == request.auth.uid;
+        allow update: if isAdmin() || (
+          get(/databases/$(database)/documents/documentChecklists/$(checklistId)).data.clientId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(["status", "staffRemarks"])
+        );
+        allow create, delete: if isAdmin();
+      }
+    }
+
+    match /quotations/{quotationId} {
+      allow read: if isAdmin() || isClientOwner();
+      allow write: if isAdmin();
+    }
+
+    match /secureLinks/{token} {
+      allow read, write: if isAdmin();
+    }
+
+    match /customRequests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /activityLog/{entryId} {
+      allow read: if isAdmin() || resource.data.clientId == request.auth.uid;
+      allow create: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 45 29% 97%;
+  --foreground: 212 23% 19%;
+  --card: 0 0% 100%;
+  --card-foreground: 212 23% 19%;
+  --primary: 207 58% 22%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 39 27% 91%;
+  --secondary-foreground: 207 58% 22%;
+  --muted: 39 27% 91%;
+  --muted-foreground: 210 13% 41%;
+  --accent: 35 66% 54%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 5 62% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 40 25% 82%;
+  --input: 40 25% 82%;
+  --ring: 207 58% 22%;
+  --radius: 1.375rem;
+  --paper: #faf9f6;
+  --paper-alt: #f1ece1;
+  --ink: #26313d;
+  --ink-soft: #5b6875;
+  --line: #dcd4c4;
+}
+
+body {
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container-page {
+  width: min(1180px, calc(100vw - 32px));
+  margin-inline: auto;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  color: #c43a2e;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+::selection {
+  background: #d89a3d;
+  color: #0f2438;
+}

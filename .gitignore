@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-codex
+out
+dist
+.env
+.env.local
+.env.qa
+.env.prod
+firebase-debug.log
+firestore-debug.log
+*.tsbuildinfo
+.DS_Store
