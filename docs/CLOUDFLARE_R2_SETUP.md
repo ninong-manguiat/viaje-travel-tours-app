@@ -8,11 +8,13 @@ Create these buckets in both environments.
 
 | Purpose | QA bucket | Prod bucket |
 |---|---|---|
-| Package media | `viaje-package-media-qa` | `viaje-package-media` |
-| Payment receipts | `viaje-payment-receipts-qa` | `viaje-payment-receipts` |
-| Travel documents | `viaje-travel-documents-qa` | `viaje-travel-documents` |
-| Generated PDFs | `viaje-generated-pdfs-qa` | `viaje-generated-pdfs` |
-| Site media | `viaje-site-media-qa` | `viaje-site-media` |
+| Package media | `viaje-travel-qa` | `viaje-travel-prod` |
+| Payment receipts | `viaje-travel-qa` | `viaje-travel-prod` |
+| Travel documents | `viaje-travel-qa` | `viaje-travel-prod` |
+| Generated PDFs | `viaje-travel-qa` | `viaje-travel-prod` |
+| Site media | `viaje-travel-qa` | `viaje-travel-prod` |
+
+Current setup uses one R2 bucket per environment. Keep object keys grouped by purpose, for example `package-media/...`, `payment-receipts/...`, `travel-documents/...`, `generated-pdfs/...`, and `site-media/...`.
 
 ## Access Policy
 
@@ -41,7 +43,7 @@ In Cloudflare, create an R2 API token with object read/write access for the Viaj
 Save the generated values into `.env.qa` and `.env.prod`:
 
 ```bash
-CLOUDFLARE_R2_ACCOUNT_ID=
+CLOUDFLARE_R2_ACCOUNT_ID=1b600d88b67aa9eef28ef3057e793076
 CLOUDFLARE_R2_ACCESS_KEY_ID=
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=
 CLOUDFLARE_R2_PUBLIC_BASE_URL=
@@ -52,8 +54,8 @@ CLOUDFLARE_R2_PUBLIC_BASE_URL=
 `CLOUDFLARE_R2_PUBLIC_BASE_URL` should be the base URL used for public assets. Examples:
 
 ```bash
-CLOUDFLARE_R2_PUBLIC_BASE_URL=https://assets-qa.your-domain.com
-CLOUDFLARE_R2_PUBLIC_BASE_URL=https://assets.your-domain.com
+CLOUDFLARE_R2_PUBLIC_BASE_URL=https://pub-0330102d080f445d890536175c67ae34.r2.dev
+CLOUDFLARE_R2_PUBLIC_BASE_URL=https://pub-1b0429953375410db52374bb6e4fd6ac.r2.dev
 ```
 
 If you do not configure a public domain yet, leave public delivery disabled and use signed URLs for all reads.
@@ -85,4 +87,11 @@ The R2 S3 endpoint format is:
 
 ```bash
 https://<CLOUDFLARE_R2_ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+For the current account:
+
+```bash
+https://1b600d88b67aa9eef28ef3057e793076.r2.cloudflarestorage.com/viaje-travel-qa
+https://1b600d88b67aa9eef28ef3057e793076.r2.cloudflarestorage.com/viaje-travel-prod
 ```
