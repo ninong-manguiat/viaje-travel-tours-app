@@ -1,5 +1,42 @@
 import Link from "next/link";
-import { Anchor, BadgeCheck, Building, Building2, Bus, CalendarCheck, Car, Facebook, FileCheck, FileText, Globe2, Hotel, IdCard, Landmark, LogIn, Map, MapPin, MapPinned, Phone, Plane, PlaneTakeoff, ReceiptText, Route, ShieldCheck, Ship, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {   Anchor,
+  BadgeCheck,
+  Building,
+  Building2,
+  Bus,
+  CalendarCheck,
+  Car,
+  Check,
+  ChevronDown,
+  Facebook,
+  FileCheck,
+  FileText,
+  Globe2,
+  Hotel,
+  IdCard,
+  ImageIcon,
+  Landmark,
+  MapPin,
+  MapPinned,
+  Phone,
+  Plane,
+  Plus,
+  ReceiptText,
+  Route,
+  Save,
+  ShieldCheck,
+  Ship,
+  Sparkles,
+  Trash2,
+  UploadCloud,
+  Map,
+  PlaneTakeoff,
+  ShipWheel,
+  BusFront,
+  Contact, 
+  LogIn
+} from "lucide-react";
 import { HeroPackageCarousel } from "@/components/domain/hero-package-carousel";
 import { PackageCard } from "@/components/domain/package-card";
 import { ProofTransactionsCarousel } from "@/components/domain/proof-transactions-carousel";
@@ -11,29 +48,42 @@ import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type Webs
 
 export const dynamic = "force-dynamic";
 
-const iconMap: Record<CmsIconName, typeof Plane> = {
+const iconMap: Record<CmsIconName, LucideIcon> = {
   Anchor,
   BadgeCheck,
   Building,
+  Building2,
   Bus,
   CalendarCheck,
   Car,
+  Check,
+  ChevronDown,
   Facebook,
   FileCheck,
   FileText,
   Globe2,
   Hotel,
   IdCard,
+  ImageIcon,
   Landmark,
   MapPin,
   MapPinned,
   Phone,
   Plane,
+  Plus,
   ReceiptText,
   Route,
+  Save,
   ShieldCheck,
   Ship,
-  Sparkles
+  Sparkles,
+  Trash2,
+  UploadCloud,
+  Map,
+  PlaneTakeoff,
+  ShipWheel,
+  BusFront,
+  Contact,
 };
 
 const services = [

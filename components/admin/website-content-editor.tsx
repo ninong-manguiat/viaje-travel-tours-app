@@ -33,7 +33,11 @@ import {
   Sparkles,
   Trash2,
   UploadCloud,
-  Map
+  Map,
+  PlaneTakeoff,
+  ShipWheel,
+  BusFront,
+  Contact,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,25 +53,38 @@ const iconMap: Record<CmsIconName, LucideIcon> = {
   Anchor,
   BadgeCheck,
   Building,
+  Building2,
   Bus,
   CalendarCheck,
   Car,
+  Check,
+  ChevronDown,
   Facebook,
   FileCheck,
   FileText,
   Globe2,
   Hotel,
   IdCard,
+  ImageIcon,
   Landmark,
   MapPin,
   MapPinned,
   Phone,
   Plane,
+  Plus,
   ReceiptText,
   Route,
+  Save,
   ShieldCheck,
   Ship,
   Sparkles,
+  Trash2,
+  UploadCloud,
+  Map,
+  PlaneTakeoff,
+  ShipWheel,
+  BusFront,
+  Contact,
 };
 
 function newService(): CmsService {
@@ -206,9 +223,6 @@ function ImageUploadField({ label, value, folder, onUploaded }: { label: string;
             </div>
           )}
         </div>
-      </div>
-      <div className="min-h-10 rounded-[10px] border border-viaje-line bg-viaje-paper px-3.5 py-2 text-xs text-viaje-soft">
-        {value ? <span className="break-all">{value}</span> : <span>No image uploaded</span>}
       </div>
     </div>
   );
@@ -353,6 +367,7 @@ export function WebsiteContentEditor() {
 
       <AccordionSection title="About Us Section">
         <div className="grid gap-4 md:grid-cols-2">
+        <div className="max-w-md md:col-span-2"><ImageUploadField label="Photo of the Office" folder="about-us" value={content.aboutUs.officePhotoUrl} onUploaded={(value) => section("aboutUs", { ...content.aboutUs, officePhotoUrl: value })} /></div>
           <TextField label="Section Description" value={content.aboutUs.sectionDescription} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescription: value })} />
           <TextField label="Section Description Subs" value={content.aboutUs.sectionDescriptionSubs} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescriptionSubs: value })} />
           <TextField label="Contact Number" value={content.aboutUs.contactNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, contactNumber: value })} />
@@ -360,7 +375,6 @@ export function WebsiteContentEditor() {
           <TextField label="Facebook" value={content.aboutUs.facebook} onChange={(value) => section("aboutUs", { ...content.aboutUs, facebook: value })} />
           <TextField label="Link of Direction" value={content.aboutUs.directionLink} onChange={(value) => section("aboutUs", { ...content.aboutUs, directionLink: value })} />
           <div className="md:col-span-2"><TextAreaField label="Direction" value={content.aboutUs.direction} onChange={(value) => section("aboutUs", { ...content.aboutUs, direction: value })} /></div>
-          <div className="max-w-md md:col-span-2"><ImageUploadField label="Photo of the Office" folder="about-us" value={content.aboutUs.officePhotoUrl} onUploaded={(value) => section("aboutUs", { ...content.aboutUs, officePhotoUrl: value })} /></div>
         </div>
       </AccordionSection>
 
@@ -372,23 +386,68 @@ export function WebsiteContentEditor() {
         onSubtitle={(value) => section("accreditation", { ...content.accreditation, sectionDescriptionSubs: value })}
       >
         {content.accreditation.accreditations.map((item, index) => (
-          <div key={index} className="grid gap-3 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[240px_1fr_1fr_auto] md:items-end">
-            <ImageUploadField label="Accreditation Image" folder="accreditations" value={item.imageUrl} onUploaded={(value) => {
-              const accreditations = [...content.accreditation.accreditations];
-              accreditations[index] = { ...item, imageUrl: value };
-              section("accreditation", { ...content.accreditation, accreditations });
-            }} />
-            <TextField label="Name" value={item.name} onChange={(value) => {
-              const accreditations = [...content.accreditation.accreditations];
-              accreditations[index] = { ...item, name: value };
-              section("accreditation", { ...content.accreditation, accreditations });
-            }} />
-            <TextField label="Subtitle" value={item.subtitle} onChange={(value) => {
-              const accreditations = [...content.accreditation.accreditations];
-              accreditations[index] = { ...item, subtitle: value };
-              section("accreditation", { ...content.accreditation, accreditations });
-            }} />
-            <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("accreditation", { ...content.accreditation, accreditations: content.accreditation.accreditations.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" /></Button>
+          <div
+            key={index}
+            className="grid gap-6 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[12fr_7fr_1fr] md:items-end"
+          >
+
+            <div className="space-y-6">
+              <TextField
+                label="Name"
+                value={item.name}
+                onChange={(value) => {
+                  const accreditations = [...content.accreditation.accreditations];
+                  accreditations[index] = { ...item, name: value };
+                  section("accreditation", {
+                    ...content.accreditation,
+                    accreditations,
+                  });
+                }}
+              />
+
+              <TextField
+                label="Subtitle"
+                value={item.subtitle}
+                onChange={(value) => {
+                  const accreditations = [...content.accreditation.accreditations];
+                  accreditations[index] = { ...item, subtitle: value };
+                  section("accreditation", {
+                    ...content.accreditation,
+                    accreditations,
+                  });
+                }}
+              />
+            </div>
+
+            <ImageUploadField
+              label="Accreditation Image"
+              folder="accreditations"
+              value={item.imageUrl}
+              onUploaded={(value) => {
+                const accreditations = [...content.accreditation.accreditations];
+                accreditations[index] = { ...item, imageUrl: value };
+                section("accreditation", {
+                  ...content.accreditation,
+                  accreditations,
+                });
+              }}
+            />
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-fit text-viaje-red"
+              onClick={() =>
+                section("accreditation", {
+                  ...content.accreditation,
+                  accreditations: content.accreditation.accreditations.filter(
+                    (_, itemIndex) => itemIndex !== index
+                  ),
+                })
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         ))}
         <Button type="button" variant="outline" className="w-fit" onClick={() => section("accreditation", { ...content.accreditation, accreditations: [...content.accreditation.accreditations, { imageUrl: "", name: "", subtitle: "" }] })}><Plus className="h-4 w-4" />Add Accreditation</Button>
@@ -402,24 +461,57 @@ export function WebsiteContentEditor() {
         onSubtitle={(value) => section("clients", { ...content.clients, sectionDescriptionSubs: value })}
       >
         {content.clients.clients.map((client: CmsClient, index) => (
-          <div key={index} className="grid gap-4 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[240px_1fr_1fr_auto] md:items-end">
-            <ImageUploadField label="Logo" folder="clients" value={client.logoUrl} onUploaded={(value) => {
+        
+        <div
+          key={index}
+          className="grid gap-6 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[12fr_7fr_1fr] md:items-end"
+        >
+          <div className="space-y-6">
+            <TextField
+              label="Title"
+              value={client.title}
+              onChange={(value) => {
+                const clients = [...content.clients.clients];
+                clients[index] = { ...client, title: value };
+                section("clients", { ...content.clients, clients });
+              }}
+            />
+            <TextField
+              label="Subtitle"
+              value={client.subtitle}
+              onChange={(value) => {
+                const clients = [...content.clients.clients];
+                clients[index] = { ...client, subtitle: value };
+                section("clients", { ...content.clients, clients });
+              }}
+            />
+          </div>
+          <ImageUploadField
+            label="Logo"
+            folder="clients"
+            value={client.logoUrl}
+            onUploaded={(value) => {
               const clients = [...content.clients.clients];
               clients[index] = { ...client, logoUrl: value };
               section("clients", { ...content.clients, clients });
-            }} />
-            <TextField label="Title" value={client.title} onChange={(value) => {
-              const clients = [...content.clients.clients];
-              clients[index] = { ...client, title: value };
-              section("clients", { ...content.clients, clients });
-            }} />
-            <TextField label="Subtitle" value={client.subtitle} onChange={(value) => {
-              const clients = [...content.clients.clients];
-              clients[index] = { ...client, subtitle: value };
-              section("clients", { ...content.clients, clients });
-            }} />
-            <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("clients", { ...content.clients, clients: content.clients.clients.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" /></Button>
-          </div>
+            }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-fit text-viaje-red"
+            onClick={() =>
+              section("clients", {
+                ...content.clients,
+                clients: content.clients.clients.filter(
+                  (_, itemIndex) => itemIndex !== index
+                ),
+              })
+            }
+          >
+          <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
         ))}
         <Button type="button" variant="outline" className="w-fit" onClick={() => section("clients", { ...content.clients, clients: [...content.clients.clients, { logoUrl: "", title: "", subtitle: "" }] })}><Plus className="h-4 w-4" />Add Client</Button>
       </RepeatableSimpleSection>
