@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export interface ProofTransactionCategory {
   title: string;
   copy: string;
-  images: Array<{ src: string; alt: string }>;
+  images: Array<{ src?: string; alt: string }>;
 }
 
 export function ProofTransactionsCarousel({ categories }: { categories: ProofTransactionCategory[] }) {
@@ -36,7 +36,13 @@ export function ProofTransactionsCarousel({ categories }: { categories: ProofTra
         {categories.map((category) => (
           <article key={category.title} className="min-w-[300px] snap-start overflow-hidden rounded-[8px] border border-viaje-line bg-white shadow-[0_20px_44px_-34px_rgba(15,36,56,0.45)] sm:min-w-[380px]">
             <div className="flex h-64 items-center justify-center bg-viaje-paper p-3">
-              <img src={category.images[0].src} alt={category.images[0].alt} className="max-h-full w-full object-contain" />
+              {category.images[0]?.src ? (
+                <img src={category.images[0].src} alt={category.images[0].alt} className="max-h-full w-full object-contain" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-center text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">
+                  Proof image
+                </div>
+              )}
             </div>
             <div className="p-5">
               <div className="flex flex-wrap items-center gap-3 text-xs text-viaje-soft">
@@ -78,9 +84,15 @@ export function ProofTransactionsCarousel({ categories }: { categories: ProofTra
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">Gallery</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {selected.images.map((image) => (
-                    <div key={image.src} className="flex h-72 items-center justify-center overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper p-3">
-                      <img src={image.src} alt={image.alt} className="max-h-full w-full object-contain" />
+                  {selected.images.map((image, index) => (
+                    <div key={`${image.src ?? "proof"}-${index}`} className="flex h-72 items-center justify-center overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper p-3">
+                      {image.src ? (
+                        <img src={image.src} alt={image.alt} className="max-h-full w-full object-contain" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-center text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">
+                          Proof image
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

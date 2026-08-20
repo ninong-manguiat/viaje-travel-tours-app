@@ -3,12 +3,12 @@ import { getSignedUrl as presign } from "@aws-sdk/s3-request-presigner";
 
 export type ViajeBucket = "packageMedia" | "paymentReceipts" | "travelDocuments" | "generatedPdfs" | "siteMedia";
 
-const bucketMap: Record<ViajeBucket, string | undefined> = {
-  packageMedia: process.env.CLOUDFLARE_R2_PACKAGE_MEDIA_BUCKET,
-  paymentReceipts: process.env.CLOUDFLARE_R2_PAYMENT_RECEIPTS_BUCKET,
-  travelDocuments: process.env.CLOUDFLARE_R2_TRAVEL_DOCUMENTS_BUCKET,
-  generatedPdfs: process.env.CLOUDFLARE_R2_GENERATED_PDFS_BUCKET,
-  siteMedia: process.env.CLOUDFLARE_R2_SITE_MEDIA_BUCKET
+const bucketEnvMap: Record<ViajeBucket, string> = {
+  packageMedia: "CLOUDFLARE_R2_PACKAGE_MEDIA_BUCKET",
+  paymentReceipts: "CLOUDFLARE_R2_PAYMENT_RECEIPTS_BUCKET",
+  travelDocuments: "CLOUDFLARE_R2_TRAVEL_DOCUMENTS_BUCKET",
+  generatedPdfs: "CLOUDFLARE_R2_GENERATED_PDFS_BUCKET",
+  siteMedia: "CLOUDFLARE_R2_SITE_MEDIA_BUCKET"
 };
 
 let r2Client: S3Client | undefined;
@@ -35,15 +35,20 @@ export function getR2Client() {
 }
 
 function resolveBucket(bucket: ViajeBucket) {
-  const name = bucketMap[bucket];
-  if (!name) throw new Error(`Missing R2 bucket env for ${bucket}`);
-  return name;
+  return requireEnv(bucketEnvMap[bucket]);
+}
+
+function publicR2Url(bucket: ViajeBucket, key: string) {
+  const baseUrl = requireEnv("CLOUDFLARE_R2_PUBLIC_BASE_URL").replace(/\/+$/, "");
+  const bucketName = resolveBucket(bucket);
+  const cleanKey = key.replace(/^\/+/, "");
+  return `${baseUrl}/${bucketName}/${cleanKey}`;
 }
 
 export async function uploadFile(bucket: ViajeBucket, key: string, body: Buffer | Uint8Array | string, contentType?: string) {
   const Bucket = resolveBucket(bucket);
   await getR2Client().send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));
-  return `${requireEnv("CLOUDFLARE_R2_PUBLIC_BASE_URL")}/${Bucket}/${key}`;
+  return publicR2Url(bucket, key);
 }
 
 export async function getSignedUrl(bucket: ViajeBucket, key: string, expiresIn = 600) {

@@ -7,6 +7,34 @@ import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { packages } from "@/lib/sample-data";
+import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type WebsiteContent } from "@/lib/website-content";
+
+export const dynamic = "force-dynamic";
+
+const iconMap: Record<CmsIconName, typeof Plane> = {
+  Anchor,
+  BadgeCheck,
+  Building,
+  Bus,
+  CalendarCheck,
+  Car,
+  Facebook,
+  FileCheck,
+  FileText,
+  Globe2,
+  Hotel,
+  IdCard,
+  Landmark,
+  MapPin,
+  MapPinned,
+  Phone,
+  Plane,
+  ReceiptText,
+  Route,
+  ShieldCheck,
+  Ship,
+  Sparkles
+};
 
 const services = [
   {
@@ -125,13 +153,51 @@ const proofCategories = [
   }
 ];
 
-const phoneDisplay = "0915 837 5470";
-const phoneHref = "tel:+639158375470";
-const facebookUrl = "https://www.facebook.com/viajewithus/";
-const address = "2/F Lifestyle Plaza Building P. Guevarra Ave, Barangay 3, Sta Cruz, Laguna (above Figaro Coffee Shop)";
-const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+async function getWebsiteContent(): Promise<WebsiteContent> {
+  try {
+    const { adminDb } = await import("@/lib/firebase-admin");
+    const snapshot = await adminDb.collection("websiteContent").doc("homepage").get();
+    return snapshot.exists ? mergeWebsiteContent(snapshot.data()) : defaultWebsiteContent;
+  } catch {
+    return defaultWebsiteContent;
+  }
+}
 
-export default function HomePage() {
+function telHref(value: string) {
+  const cleaned = value.replace(/[^\d+]/g, "");
+  return `tel:${cleaned}`;
+}
+
+export default async function HomePage() {
+  const websiteContent = await getWebsiteContent();
+  const cmsServices = websiteContent.services.services.map((service) => ({
+    title: service.name,
+    icon: iconMap[service.icon],
+    items: service.list.map((item) => ({ label: item.text, icon: iconMap[item.icon] }))
+  }));
+  const phoneDisplay = websiteContent.aboutUs.contactNumber;
+  const phoneHref = telHref(phoneDisplay);
+  const facebookUrl = websiteContent.aboutUs.facebook;
+  const address = websiteContent.aboutUs.direction;
+  const googleMapsUrl = websiteContent.aboutUs.directionLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const cmsRecentActivities = websiteContent.recentActivities.activities.map((activity) => ({
+    title: activity.title,
+    copy: activity.description,
+    date: activity.date,
+    location: activity.place,
+    coverImageUrl: activity.coverPhotoUrl,
+    gallery: activity.galleryUrls.length
+      ? activity.galleryUrls.map((src, index) => ({ src, alt: `${activity.title} gallery photo ${index + 1}` }))
+      : [{ alt: `${activity.title} gallery placeholder` }]
+  }));
+  const cmsProofCategories = websiteContent.proofTransactions.proofs.map((proof) => ({
+    title: proof.title,
+    copy: proof.description,
+    images: proof.galleryUrls.length
+      ? proof.galleryUrls.map((src, index) => ({ src, alt: `${proof.title} proof ${index + 1}` }))
+      : [{ alt: `${proof.title} proof placeholder` }]
+  }));
+
   return (
     <main>
       <section className="relative overflow-hidden bg-[linear-gradient(333deg,#faf9f5_0%,#89000012_48%,#ffffff_100%)] text-viaje-navy lg:min-h-[100svh]">
@@ -153,11 +219,11 @@ export default function HomePage() {
 
       <section className="container-page py-24">
         <div className="mb-10">
-          <p className="eyebrow">Services</p>
-          <h2 className="mt-3 text-4xl font-medium text-viaje-navy">Travel support for every step.</h2>
+          <p className="eyebrow">{websiteContent.services.sectionDescription}</p>
+          <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.services.sectionDescriptionSubs}</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          {services.map((service) => (
+          {cmsServices.map((service) => (
             <Card key={service.title}>
               <CardHeader>
                 <service.icon className="h-7 w-7 text-viaje-red" />
@@ -182,14 +248,14 @@ export default function HomePage() {
         <div className="container-page">
           <div className="mb-10 max-w-3xl">
             <div>
-              <p className="eyebrow">About Us</p>
-              <h2 className="mt-3 text-4xl font-medium text-viaje-navy">Your local travel partner in Sta. Cruz, Laguna.</h2>
+              <p className="eyebrow">{websiteContent.aboutUs.sectionDescription}</p>
+              <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.aboutUs.sectionDescriptionSubs}</h2>
             </div>
             <p className="mt-5 text-[16px] leading-7 text-viaje-soft">Viaje Travel and Tours helps travelers plan smoother trips through ticketing, tour packages, travel documentation support, and practical pre-departure coordination.</p>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
-            <img src="/brand/viaje-office.jpg" alt="Viaje Travel and Tours office" className="h-full min-h-[420px] w-full rounded-[8px] object-cover shadow-[0_24px_60px_-42px_rgba(15,36,56,0.42)]" />
+            <img src={websiteContent.aboutUs.officePhotoUrl} alt="Viaje Travel and Tours office" className="h-full min-h-[420px] w-full rounded-[8px] object-cover shadow-[0_24px_60px_-42px_rgba(15,36,56,0.42)]" />
             <Card>
               <CardContent className="grid h-full content-center gap-5 p-6">
                 <a href={phoneHref} className="flex items-center gap-4 rounded-[8px] border border-viaje-line p-4 transition hover:bg-viaje-paper">
@@ -235,28 +301,27 @@ export default function HomePage() {
 
       <section className="container-page py-24">
         <div className="mb-8">
-          <p className="eyebrow">Accreditation</p>
-          <h2 className="mt-3 text-3xl font-medium text-viaje-navy">Recognized travel standards.</h2>
+          <p className="eyebrow">{websiteContent.accreditation.sectionDescription}</p>
+          <h2 className="mt-3 text-3xl font-medium text-viaje-navy">{websiteContent.accreditation.sectionDescriptionSubs}</h2>
         </div>
         <div className="flex flex-wrap gap-4">
-          <Card className="rounded-[8px]">
-            <CardContent className="flex items-center gap-4 p-4">
-              <img src="/brand/dot-logo.webp" alt="Department of Tourism Philippines" className="h-16 w-16 object-contain" />
-              <div>
-                <h3 className="font-serif text-lg font-semibold text-viaje-navy">Department of Tourism</h3>
-                <p className="mt-1 text-xs text-viaje-soft">Philippines accreditation reference</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="rounded-[8px]">
-            <CardContent className="flex items-center gap-4 p-4">
-              <img src="/brand/iso-9001-2015.webp" alt="ISO 9001:2015" className="h-16 w-20 object-contain" />
-              <div>
-                <h3 className="font-serif text-lg font-semibold text-viaje-navy">ISO 9001:2015</h3>
-                <p className="mt-1 text-xs text-viaje-soft">Quality management standard reference</p>
-              </div>
-            </CardContent>
-          </Card>
+          {websiteContent.accreditation.accreditations.map((item) => (
+            <Card key={item.name} className="rounded-[8px]">
+              <CardContent className="flex items-center gap-4 p-4">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-viaje-paper">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.name} className="h-full w-full object-contain" />
+                  ) : (
+                    <BadgeCheck className="h-6 w-6 text-viaje-red" />
+                  )}
+                </span>
+                <div>
+                  <h3 className="font-serif text-lg font-semibold text-viaje-navy">{item.name}</h3>
+                  <p className="mt-1 text-xs text-viaje-soft">{item.subtitle}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </section>
 
@@ -264,20 +329,20 @@ export default function HomePage() {
         <div className="container-page">
           <div className="mb-10">
             <div>
-              <p className="eyebrow">Our Clients</p>
-              <h2 className="mt-3 text-4xl font-medium text-viaje-navy">Trusted by travelers and groups.</h2>
+              <p className="eyebrow">{websiteContent.clients.sectionDescription}</p>
+              <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.clients.sectionDescriptionSubs}</h2>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {clients.map((client) => (
-              <Card key={client}>
+            {websiteContent.clients.clients.map((client) => (
+              <Card key={client.title}>
                 <CardContent className="flex items-center gap-4 p-5">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-viaje-navy text-white">
-                    <Building2 className="h-6 w-6" />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-viaje-navy text-white">
+                    {client.logoUrl ? <img src={client.logoUrl} alt={client.title} className="h-full w-full object-cover" /> : <Building2 className="h-6 w-6" />}
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Client Logo</p>
-                    <h3 className="mt-1 font-serif text-xl font-semibold text-viaje-navy">{client}</h3>
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">{client.subtitle}</p>
+                    <h3 className="mt-1 font-serif text-xl font-semibold text-viaje-navy">{client.title}</h3>
                   </div>
                 </CardContent>
               </Card>
@@ -288,21 +353,21 @@ export default function HomePage() {
 
       <section className="container-page py-24">
         <div className="mb-10">
-          <p className="eyebrow">Recent Activities</p>
-          <h2 className="mt-3 text-4xl font-medium text-viaje-navy">Recent client trips, approvals, and travel support.</h2>
+          <p className="eyebrow">{websiteContent.recentActivities.sectionDescription}</p>
+          <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.recentActivities.sectionDescriptionSubs}</h2>
           <p className="mt-5 max-w-3xl text-[16px] leading-7 text-viaje-soft">A running snapshot of the latest arrangements, inquiries, and coordination work completed by Viaje Travel and Tours.</p>
         </div>
-        <RecentActivitiesCarousel activities={recentActivities} />
+        <RecentActivitiesCarousel activities={cmsRecentActivities} />
       </section>
 
       <section className="bg-white py-24">
         <div className="container-page">
           <div className="mb-10 max-w-3xl">
-            <p className="eyebrow">Proof of Transactions</p>
-            <h2 className="mt-3 text-4xl font-medium text-viaje-navy">Sample successful arrangements.</h2>
+            <p className="eyebrow">{websiteContent.proofTransactions.sectionDescription}</p>
+            <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.proofTransactions.sectionDescriptionSubs}</h2>
             <p className="mt-5 text-[16px] leading-7 text-viaje-soft">Sample documents showing completed visa approvals, hotel confirmations, and issued flight bookings handled by Viaje Travel and Tours.</p>
           </div>
-          <ProofTransactionsCarousel categories={proofCategories} />
+          <ProofTransactionsCarousel categories={cmsProofCategories} />
         </div>
       </section>
 
