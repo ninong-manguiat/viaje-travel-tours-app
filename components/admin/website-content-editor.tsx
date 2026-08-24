@@ -694,7 +694,7 @@ function WebsiteContentPreview({ content }: { content: WebsiteContent }) {
           <div className="grid gap-2">
             {content.clients.clients.slice(0, 4).map((client, index) => (
               <div key={`${client.title}-${index}`} className="flex items-center gap-3 rounded-[10px] border border-viaje-line p-3">
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[8px] bg-viaje-navy text-white">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[8px] text-white">
                   {client.logoUrl ? <img src={client.logoUrl} alt={client.title} className="h-full w-full object-cover" /> : <Building2 className="m-2.5 h-5 w-5" />}
                 </div>
                 <div>

@@ -44,6 +44,7 @@ import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { packages } from "@/lib/sample-data";
+import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type WebsiteContent } from "@/lib/website-content";
 
 export const dynamic = "force-dynamic";
@@ -207,9 +208,9 @@ async function getWebsiteContent(): Promise<WebsiteContent> {
   try {
     const { adminDb } = await import("@/lib/firebase-admin");
     const snapshot = await adminDb.collection("websiteContent").doc("homepage").get();
-    return snapshot.exists ? mergeWebsiteContent(snapshot.data()) : defaultWebsiteContent;
+    return normalizeWebsiteContentMedia(snapshot.exists ? mergeWebsiteContent(snapshot.data()) : defaultWebsiteContent);
   } catch {
-    return defaultWebsiteContent;
+    return normalizeWebsiteContentMedia(defaultWebsiteContent);
   }
 }
 
@@ -301,7 +302,6 @@ export default async function HomePage() {
               <p className="eyebrow">{websiteContent.aboutUs.sectionDescription}</p>
               <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.aboutUs.sectionDescriptionSubs}</h2>
             </div>
-            <p className="mt-5 text-[16px] leading-7 text-viaje-soft">Viaje Travel and Tours helps travelers plan smoother trips through ticketing, tour packages, travel documentation support, and practical pre-departure coordination.</p>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
@@ -387,7 +387,7 @@ export default async function HomePage() {
             {websiteContent.clients.clients.map((client) => (
               <Card key={client.title}>
                 <CardContent className="flex items-center gap-4 p-5">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-viaje-navy text-white">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] text-white">
                     {client.logoUrl ? <img src={client.logoUrl} alt={client.title} className="h-full w-full object-cover" /> : <Building2 className="h-6 w-6" />}
                   </div>
                   <div>
@@ -405,7 +405,6 @@ export default async function HomePage() {
         <div className="mb-10">
           <p className="eyebrow">{websiteContent.recentActivities.sectionDescription}</p>
           <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.recentActivities.sectionDescriptionSubs}</h2>
-          <p className="mt-5 max-w-3xl text-[16px] leading-7 text-viaje-soft">A running snapshot of the latest arrangements, inquiries, and coordination work completed by Viaje Travel and Tours.</p>
         </div>
         <RecentActivitiesCarousel activities={cmsRecentActivities} />
       </section>
@@ -415,7 +414,6 @@ export default async function HomePage() {
           <div className="mb-10 max-w-3xl">
             <p className="eyebrow">{websiteContent.proofTransactions.sectionDescription}</p>
             <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.proofTransactions.sectionDescriptionSubs}</h2>
-            <p className="mt-5 text-[16px] leading-7 text-viaje-soft">Sample documents showing completed visa approvals, hotel confirmations, and issued flight bookings handled by Viaje Travel and Tours.</p>
           </div>
           <ProofTransactionsCarousel categories={cmsProofCategories} />
         </div>

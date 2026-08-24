@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { defaultWebsiteContent, mergeWebsiteContent } from "@/lib/website-content";
+import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,17 +22,17 @@ export async function GET(request: NextRequest) {
   const docRef = await getDocRef();
   const snapshot = await docRef.get();
   if (!snapshot.exists) {
-    return NextResponse.json({ content: defaultWebsiteContent });
+    return NextResponse.json({ content: normalizeWebsiteContentMedia(defaultWebsiteContent) });
   }
 
-  return NextResponse.json({ content: mergeWebsiteContent(snapshot.data()) });
+  return NextResponse.json({ content: normalizeWebsiteContentMedia(mergeWebsiteContent(snapshot.data())) });
 }
 
 export async function PUT(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
   const body = await request.json();
-  const content = mergeWebsiteContent(body?.content);
+  const content = normalizeWebsiteContentMedia(mergeWebsiteContent(body?.content));
 
   const docRef = await getDocRef();
   await docRef.set(

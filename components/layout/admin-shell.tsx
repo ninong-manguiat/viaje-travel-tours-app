@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { useState } from "react";
-import { BarChart3, BookOpen, CreditCard, FileText, LayoutDashboard, Menu, Package, PanelsTopLeft, X, Users } from "lucide-react";
+import { BarChart3, BookOpen, CreditCard, FileText, LayoutDashboard, Menu, Package, PanelsTopLeft, ChevronLeft, Users } from "lucide-react";
 
 const items = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -24,12 +24,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className={`min-h-screen bg-viaje-paper lg:grid ${open ? "lg:grid-cols-[230px_1fr]" : "lg:grid-cols-[72px_1fr]"}`}>
       <aside className={`fixed inset-y-0 left-0 z-40 h-screen bg-viaje-navy px-4 py-5 text-white/75 transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${open ? "w-[230px] translate-x-0" : "w-[72px] -translate-x-full lg:translate-x-0"}`}>
         <div className="mb-6 flex items-center justify-between gap-2 px-1 pb-4">
-          <Link href="/admin" className="flex min-w-0 items-center gap-2 font-serif text-[17px] font-semibold text-white">
-            <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-white/10 text-viaje-red2 after:rotate-[35deg] after:content-['✈']" />
-            {open && <span className="truncate">Viaje Admin</span>}
-          </Link>
           <button type="button" onClick={() => setOpen((current) => !current)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:bg-white/10 hover:text-white" aria-label={open ? "Collapse sidebar" : "Open sidebar"}>
-            {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {open ? <ChevronLeft className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
         </div>
         <nav className="flex flex-col gap-0.5">

@@ -40,9 +40,21 @@ function resolveBucket(bucket: ViajeBucket) {
 
 function publicR2Url(bucket: ViajeBucket, key: string) {
   const baseUrl = requireEnv("CLOUDFLARE_R2_PUBLIC_BASE_URL").replace(/\/+$/, "");
-  const bucketName = resolveBucket(bucket);
   const cleanKey = key.replace(/^\/+/, "");
-  return `${baseUrl}/${bucketName}/${cleanKey}`;
+  return `${baseUrl}/${cleanKey}`;
+}
+
+export function normalizePublicR2Url(bucket: ViajeBucket, url: string) {
+  if (!url || url.startsWith("/")) return url;
+
+  const baseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  const bucketName = process.env[bucketEnvMap[bucket]];
+  if (!baseUrl || !bucketName || !url.startsWith(`${baseUrl}/`)) return url;
+
+  const suffix = url.slice(baseUrl.length).replace(/^\/+/, "");
+  if (!suffix.startsWith(`${bucketName}/`)) return url;
+
+  return `${baseUrl}/${suffix.slice(bucketName.length + 1)}`;
 }
 
 export async function uploadFile(bucket: ViajeBucket, key: string, body: Buffer | Uint8Array | string, contentType?: string) {
