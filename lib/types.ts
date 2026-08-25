@@ -27,13 +27,19 @@ export interface TravelPackage {
   coverImageUrl: string;
   galleryUrls: string[];
   status: PackageStatus;
-  pricing: {
-    adult: number;
-    childWithBed: number;
-    childWithoutBed: number;
-    infant: number;
-    singleSupplement: number;
-  };
+  price: number;
+  travelDates: Array<{
+    id: string;
+    startDate: string;
+    endDate: string;
+    additionalAmount: number;
+    availabilityStatus: "available" | "limited" | "sold_out";
+  }>;
+  itinerary: Array<{
+    day: string;
+    imageUrl: string;
+    activities: Array<{ activity: string; icon: string }>;
+  }>;
   inclusions: string[];
   exclusions: string[];
   requirements: string[];
@@ -48,7 +54,6 @@ export interface Departure {
   endDate: string;
   slots: number;
   basePrice: number;
-  surcharge: number;
   availabilityStatus: "available" | "limited" | "sold_out";
 }
 

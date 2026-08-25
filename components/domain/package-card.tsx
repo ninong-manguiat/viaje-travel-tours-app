@@ -39,8 +39,8 @@ export function PackageCard({ item }: { item: TravelPackage }) {
       </div>
       <div className="flex items-center justify-between border-t border-viaje-line bg-viaje-paperAlt px-5 py-4">
         <p className="font-serif text-[16.5px] font-semibold text-viaje-red">
-          {formatPeso(item.pricing.adult)}
-          <small className="ml-1 font-sans text-[11px] font-medium text-viaje-soft">/ adult</small>
+          {formatPeso(item.price)}
+          <small className="ml-1 font-sans text-[11px] font-medium text-viaje-soft">/ person</small>
         </p>
         <Link href={`/packages/${item.slug}`}>
           <Button size="sm">View Package</Button>

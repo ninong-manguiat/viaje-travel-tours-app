@@ -16,7 +16,15 @@ export const packages: TravelPackage[] = [
       "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=1200&q=80"
     ],
     status: "published",
-    pricing: { adult: 68900, childWithBed: 65900, childWithoutBed: 59900, infant: 12500, singleSupplement: 18000 },
+    price: 68900,
+    travelDates: [
+      { id: "date-jp-oct", startDate: "2026-10-18", endDate: "2026-10-23", additionalAmount: 3000, availabilityStatus: "limited" },
+      { id: "date-jp-nov", startDate: "2026-11-08", endDate: "2026-11-13", additionalAmount: 0, availabilityStatus: "available" }
+    ],
+    itinerary: [
+      { day: "Day 1", imageUrl: "", activities: [{ activity: "Arrival in Tokyo", icon: "Plane" }] },
+      { day: "Day 2", imageUrl: "", activities: [{ activity: "Mt. Fuji and shopping tour", icon: "MapPin" }] }
+    ],
     inclusions: ["Roundtrip airfare", "Hotel accommodation", "Daily breakfast", "Guided tours", "Visa assistance"],
     exclusions: ["Travel tax", "Visa fee", "Meals not mentioned", "Personal expenses"],
     requirements: ["Valid passport", "Japan visa documents", "Completed booking form"],
@@ -41,7 +49,14 @@ export const packages: TravelPackage[] = [
       "https://images.unsplash.com/photo-1540202404-a2f29016b523?auto=format&fit=crop&w=1200&q=80"
     ],
     status: "published",
-    pricing: { adult: 18900, childWithBed: 16900, childWithoutBed: 13900, infant: 2500, singleSupplement: 6500 },
+    price: 18900,
+    travelDates: [
+      { id: "date-pal-sep", startDate: "2026-09-12", endDate: "2026-09-15", additionalAmount: 0, availabilityStatus: "available" }
+    ],
+    itinerary: [
+      { day: "Day 1", imageUrl: "", activities: [{ activity: "Puerto Princesa arrival", icon: "Plane" }] },
+      { day: "Day 2", imageUrl: "", activities: [{ activity: "Island hopping tour", icon: "Ship" }] }
+    ],
     inclusions: ["Hotel accommodation", "Airport transfers", "Island hopping tour", "Daily breakfast"],
     exclusions: ["Airfare", "Environmental fees", "Optional tours"],
     requirements: ["Valid government ID", "Completed booking form"],
@@ -62,7 +77,14 @@ export const packages: TravelPackage[] = [
     coverImageUrl: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=1200&q=80",
     galleryUrls: ["https://images.unsplash.com/photo-1548115184-bc6544d06a58?auto=format&fit=crop&w=1200&q=80"],
     status: "published",
-    pricing: { adult: 45900, childWithBed: 43900, childWithoutBed: 39900, infant: 9500, singleSupplement: 14000 },
+    price: 45900,
+    travelDates: [
+      { id: "date-kr-dec", startDate: "2026-12-03", endDate: "2026-12-07", additionalAmount: 2500, availabilityStatus: "limited" }
+    ],
+    itinerary: [
+      { day: "Day 1", imageUrl: "", activities: [{ activity: "Seoul arrival", icon: "Plane" }] },
+      { day: "Day 2", imageUrl: "", activities: [{ activity: "Nami Island winter tour", icon: "MapPin" }] }
+    ],
     inclusions: ["Roundtrip airfare", "Hotel accommodation", "Tours and transfers", "Daily breakfast"],
     exclusions: ["K-ETA or visa fee", "Travel tax", "Lunch and dinner unless stated"],
     requirements: ["Valid passport", "Financial documents when required"],
@@ -71,10 +93,10 @@ export const packages: TravelPackage[] = [
 ];
 
 export const departures: Departure[] = [
-  { id: "dep-jp-oct", packageId: "pkg-japan-autumn", startDate: "2026-10-18", endDate: "2026-10-23", slots: 12, basePrice: 68900, surcharge: 3000, availabilityStatus: "limited" },
-  { id: "dep-jp-nov", packageId: "pkg-japan-autumn", startDate: "2026-11-08", endDate: "2026-11-13", slots: 18, basePrice: 68900, surcharge: 0, availabilityStatus: "available" },
-  { id: "dep-pal-sep", packageId: "pkg-palawan-escape", startDate: "2026-09-12", endDate: "2026-09-15", slots: 20, basePrice: 18900, surcharge: 0, availabilityStatus: "available" },
-  { id: "dep-kr-dec", packageId: "pkg-korea-winter", startDate: "2026-12-03", endDate: "2026-12-07", slots: 8, basePrice: 45900, surcharge: 2500, availabilityStatus: "limited" }
+  { id: "dep-jp-oct", packageId: "pkg-japan-autumn", startDate: "2026-10-18", endDate: "2026-10-23", slots: 12, basePrice: 68900, availabilityStatus: "limited" },
+  { id: "dep-jp-nov", packageId: "pkg-japan-autumn", startDate: "2026-11-08", endDate: "2026-11-13", slots: 18, basePrice: 68900, availabilityStatus: "available" },
+  { id: "dep-pal-sep", packageId: "pkg-palawan-escape", startDate: "2026-09-12", endDate: "2026-09-15", slots: 20, basePrice: 18900, availabilityStatus: "available" },
+  { id: "dep-kr-dec", packageId: "pkg-korea-winter", startDate: "2026-12-03", endDate: "2026-12-07", slots: 8, basePrice: 45900, availabilityStatus: "limited" }
 ];
 
 export const bookings: Booking[] = [
@@ -110,5 +132,14 @@ export function getPackage(packageId: string) {
 }
 
 export function getDepartures(packageId: string) {
-  return departures.filter((departure) => departure.packageId === packageId);
+  const pkg = getPackage(packageId);
+  return pkg.travelDates.map((travelDate) => ({
+    id: travelDate.id,
+    packageId: pkg.id,
+    startDate: travelDate.startDate,
+    endDate: travelDate.endDate,
+    slots: 0,
+    basePrice: pkg.price + travelDate.additionalAmount,
+    availabilityStatus: travelDate.availabilityStatus
+  }));
 }

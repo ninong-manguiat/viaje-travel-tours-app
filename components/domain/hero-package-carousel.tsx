@@ -21,7 +21,7 @@ export function HeroPackageCarousel({ items }: { items: TravelPackage[] }) {
               </p>
               <h3 className="mt-1 min-h-[52px] font-serif text-xl font-semibold leading-tight text-viaje-navy">{item.title}</h3>
               <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="font-mono text-[12px] font-semibold text-viaje-red">{formatPeso(item.pricing.adult)}</p>
+                <p className="font-mono text-[12px] font-semibold text-viaje-red">{formatPeso(item.price)}</p>
                 <Link href={`/packages/${item.slug}`}>
                   <Button size="sm" className="h-8 px-3 text-[11px]">
                     View

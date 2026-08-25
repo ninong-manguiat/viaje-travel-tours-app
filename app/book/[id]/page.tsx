@@ -18,7 +18,7 @@ export default function BookingWizardPage({ params }: { params: { id: string } }
   const [step, setStep] = useState(0);
   const [adults, setAdults] = useState(2);
   const [addons, setAddons] = useState<string[]>([]);
-  const total = useMemo(() => adults * pkg.pricing.adult + pkg.addons.filter((item) => addons.includes(item.id)).reduce((sum, item) => sum + item.price, 0), [adults, addons, pkg]);
+  const total = useMemo(() => adults * pkg.price + pkg.addons.filter((item) => addons.includes(item.id)).reduce((sum, item) => sum + item.price, 0), [adults, addons, pkg]);
 
   function submit() {
     router.push(`/book/booking-001/payment?packageId=${pkg.id}&departureId=${searchParams.get("departureId") ?? ""}`);
@@ -83,8 +83,8 @@ export default function BookingWizardPage({ params }: { params: { id: string } }
         <Card>
           <CardHeader><CardTitle>Cost Summary</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between"><span>Adults x {adults}</span><strong>{formatPeso(adults * pkg.pricing.adult)}</strong></div>
-            <div className="flex justify-between"><span>Add-ons</span><strong>{formatPeso(total - adults * pkg.pricing.adult)}</strong></div>
+            <div className="flex justify-between"><span>Travelers x {adults}</span><strong>{formatPeso(adults * pkg.price)}</strong></div>
+            <div className="flex justify-between"><span>Add-ons</span><strong>{formatPeso(total - adults * pkg.price)}</strong></div>
             <div className="border-t pt-3 flex justify-between text-lg"><span>Total</span><strong>{formatPeso(total)}</strong></div>
           </CardContent>
         </Card>

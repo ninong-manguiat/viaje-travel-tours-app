@@ -6,15 +6,15 @@ import { useState } from "react";
 import { BarChart3, BookOpen, CreditCard, FileText, LayoutDashboard, Menu, Package, PanelsTopLeft, ChevronLeft, Users } from "lucide-react";
 
 const items = [
+  { href: "/admin/website-content", label: "Website Content", icon: PanelsTopLeft },
+  { href: "/admin/packages", label: "Packages", icon: Package },
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/transactions/new", label: "Transactions", icon: CreditCard },
   { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
-  { href: "/admin/packages", label: "Packages", icon: Package },
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/payments/verification", label: "Payments", icon: CreditCard },
   { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/quotations", label: "Quotations", icon: BarChart3 },
-  { href: "/admin/website-content", label: "Website Content", icon: PanelsTopLeft }
 ] satisfies Array<{ href: Route; label: string; icon: typeof LayoutDashboard }>;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

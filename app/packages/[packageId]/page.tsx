@@ -57,7 +57,7 @@ export default function PackageDetailsPage({ params }: { params: { packageId: st
                   <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
                       <p className="font-semibold">{formatDate(dep.startDate)} - {formatDate(dep.endDate)}</p>
-                      <p className="text-sm text-muted-foreground">{dep.slots} slots left · Surcharge {formatPeso(dep.surcharge)}</p>
+                      <p className="text-sm text-muted-foreground">Additional amount {formatPeso(dep.basePrice - pkg.price)}</p>
                     </div>
                     <StatusBadge status={dep.availabilityStatus} />
                   </CardContent>
@@ -82,9 +82,9 @@ export default function PackageDetailsPage({ params }: { params: { packageId: st
               <CardTitle>Booking Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between"><span>Adult price</span><strong>{formatPeso(pkg.pricing.adult)}</strong></div>
+              <div className="flex justify-between"><span>Package price</span><strong>{formatPeso(pkg.price)}</strong></div>
               <div className="flex justify-between"><span>Selected departure</span><span>{selected ? formatDate(selected.startDate) : "TBD"}</span></div>
-              <div className="flex justify-between"><span>Surcharge</span><strong>{formatPeso(selected?.surcharge ?? 0)}</strong></div>
+              <div className="flex justify-between"><span>Additional amount</span><strong>{formatPeso(selected ? selected.basePrice - pkg.price : 0)}</strong></div>
               <Link href={`/book/${pkg.id}?departureId=${selected?.id ?? ""}`}><Button className="w-full">Book This Package</Button></Link>
               <Button variant="outline" className="w-full">Download Brochure</Button>
             </CardContent>
