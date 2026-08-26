@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import {
   Anchor,
   BadgeCheck,
@@ -16,6 +16,7 @@ import {
   FileCheck,
   FileText,
   Globe2,
+  GripVertical,
   Hotel,
   IdCard,
   ImageIcon,
@@ -43,7 +44,7 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cmsIconOptions, defaultWebsiteContent, type CmsActivity, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
+import { cmsIconOptions, defaultWebsiteContent, type CmsAccreditation, type CmsActivity, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
 
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
@@ -364,11 +365,223 @@ function MultipleImageUpload({ label, values, folder, onChange, maxPhotos = 4 }:
   );
 }
 
+function ServiceItemAccordion({
+  service,
+  index,
+  onChange,
+  onRemove,
+}: {
+  service: CmsService;
+  index: number;
+  onChange: (service: CmsService) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const title = `Service # ${index + 1} : ${service.name || "Untitled Service"}`;
+
+  return (
+    <div className="overflow-visible rounded-[10px] border border-viaje-line bg-white">
+      <div className="flex items-center gap-2 px-5 py-4">
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+          aria-expanded={open}
+        >
+          <span className="min-w-0 truncate font-serif text-xl font-semibold text-viaje-navy">{title}</span>
+          <ChevronDown className={`h-5 w-5 text-viaje-soft transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setConfirmingRemove((current) => !current)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-viaje-red transition hover:bg-viaje-red/10"
+            aria-label={`Remove ${service.name || title}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          {confirmingRemove && (
+            <div className="absolute right-0 top-11 z-40 w-56 rounded-[10px] border border-viaje-line bg-white p-3 text-sm shadow-[0_18px_40px_-24px_rgba(15,36,56,0.55)]">
+              <p className="font-semibold text-viaje-navy">Remove this service?</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" size="sm" variant="ghost" className="w-fit" onClick={() => setConfirmingRemove(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" variant="destructive" className="w-fit" onClick={onRemove}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <div className="grid gap-5 border-t border-viaje-line p-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField
+              label="Name of the Service"
+              value={service.name}
+              onChange={(value) => onChange({ ...service, name: value })}
+            />
+            <label className={fieldClass}>
+              <span className={labelClass}>Icon of the Service</span>
+              <IconSelect value={service.icon} onChange={(value) => onChange({ ...service, icon: value })} />
+            </label>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className={labelClass}>List of the Service</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                onClick={() => onChange({ ...service, list: [...service.list, { icon: "BadgeCheck", text: "" }] })}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </Button>
+            </div>
+
+            {service.list.map((item: CmsServiceListItem, itemIndex) => (
+              <div key={itemIndex} className="grid gap-3 md:grid-cols-[minmax(180px,260px)_minmax(0,1fr)_auto] md:items-center">
+                <IconSelect
+                  value={item.icon}
+                  onChange={(value) => {
+                    const list = [...service.list];
+                    list[itemIndex] = { ...item, icon: value };
+                    onChange({ ...service, list });
+                  }}
+                />
+                <Input
+                  value={item.text}
+                  onChange={(event) => {
+                    const list = [...service.list];
+                    list[itemIndex] = { ...item, text: event.target.value };
+                    onChange({ ...service, list });
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="w-fit text-viaje-red"
+                  onClick={() => onChange({ ...service, list: service.list.filter((_, listIndex) => listIndex !== itemIndex) })}
+                  aria-label={`Remove service item ${itemIndex + 1}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CmsItemAccordion({
+  title,
+  removeLabel,
+  children,
+  onRemove,
+  dragLabel,
+  isDragging = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: {
+  title: string;
+  removeLabel: string;
+  children: ReactNode;
+  onRemove: () => void;
+  dragLabel?: string;
+  isDragging?: boolean;
+  onDragStart?: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  return (
+    <div
+      className={`overflow-visible rounded-[10px] border border-viaje-line bg-white transition ${isDragging ? "opacity-50" : ""}`}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <div className="flex items-center gap-2 px-5 py-4">
+        {onDragStart && (
+          <button
+            type="button"
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            className="flex h-9 w-9 shrink-0 cursor-grab items-center justify-center rounded-full text-viaje-soft transition hover:bg-viaje-paperAlt active:cursor-grabbing"
+            aria-label={dragLabel || `Reorder ${title}`}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+          aria-expanded={open}
+        >
+          <span className="min-w-0 truncate font-serif text-xl font-semibold text-viaje-navy">{title}</span>
+          <ChevronDown className={`h-5 w-5 text-viaje-soft transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setConfirmingRemove((current) => !current)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-viaje-red transition hover:bg-viaje-red/10"
+            aria-label={removeLabel}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          {confirmingRemove && (
+            <div className="absolute right-0 top-11 z-40 w-56 rounded-[10px] border border-viaje-line bg-white p-3 text-sm shadow-[0_18px_40px_-24px_rgba(15,36,56,0.55)]">
+              <p className="font-semibold text-viaje-navy">{removeLabel}?</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button type="button" size="sm" variant="ghost" className="w-fit" onClick={() => setConfirmingRemove(false)}>
+                  Cancel
+                </Button>
+                <Button type="button" size="sm" variant="destructive" className="w-fit" onClick={onRemove}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {open && <div className="grid gap-5 border-t border-viaje-line p-5">{children}</div>}
+    </div>
+  );
+}
+
+type SortableCmsSection = "accreditations" | "clients" | "activities" | "proofs";
+
+function reorderItems<T>(items: T[], fromIndex: number, toIndex: number) {
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+}
+
 export function WebsiteContentEditor() {
   const [content, setContent] = useState<WebsiteContent>(defaultWebsiteContent);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [draggedItem, setDraggedItem] = useState<{ section: SortableCmsSection; index: number } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -406,6 +619,56 @@ export function WebsiteContentEditor() {
     setContent((current) => ({ ...current, [key]: value }));
   }
 
+  function startItemDrag(sectionName: SortableCmsSection, index: number, event: DragEvent<HTMLButtonElement>) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `${sectionName}:${index}`);
+    setDraggedItem({ section: sectionName, index });
+  }
+
+  function allowItemDrop(sectionName: SortableCmsSection, event: DragEvent<HTMLDivElement>) {
+    if (draggedItem?.section !== sectionName) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function dropItem(sectionName: SortableCmsSection, toIndex: number, event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!draggedItem || draggedItem.section !== sectionName || draggedItem.index === toIndex) {
+      setDraggedItem(null);
+      return;
+    }
+
+    if (sectionName === "accreditations") {
+      section("accreditation", {
+        ...content.accreditation,
+        accreditations: reorderItems(content.accreditation.accreditations, draggedItem.index, toIndex),
+      });
+    }
+
+    if (sectionName === "clients") {
+      section("clients", {
+        ...content.clients,
+        clients: reorderItems(content.clients.clients, draggedItem.index, toIndex),
+      });
+    }
+
+    if (sectionName === "activities") {
+      section("recentActivities", {
+        ...content.recentActivities,
+        activities: reorderItems(content.recentActivities.activities, draggedItem.index, toIndex),
+      });
+    }
+
+    if (sectionName === "proofs") {
+      section("proofTransactions", {
+        ...content.proofTransactions,
+        proofs: reorderItems(content.proofTransactions.proofs, draggedItem.index, toIndex),
+      });
+    }
+
+    setDraggedItem(null);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -425,54 +688,27 @@ export function WebsiteContentEditor() {
             <TextField label="Section Description" value={content.services.sectionDescription} onChange={(value) => section("services", { ...content.services, sectionDescription: value })} />
             <TextField label="Section Description Subs" value={content.services.sectionDescriptionSubs} onChange={(value) => section("services", { ...content.services, sectionDescriptionSubs: value })} />
           </div>
-          {content.services.services.map((service, index) => (
-            <div key={index} className="rounded-[8px] border border-viaje-line p-4">
-              <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
-                <TextField label="Name of the Service" value={service.name} onChange={(value) => {
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" className="w-fit" onClick={() => section("services", { ...content.services, services: [...content.services.services, newService()] })}>
+              <Plus className="h-4 w-4" />
+              Add Service
+            </Button>
+          </div>
+          <div className="grid gap-4">
+            {content.services.services.map((service, index) => (
+              <ServiceItemAccordion
+                key={index}
+                service={service}
+                index={index}
+                onChange={(nextService) => {
                   const services = [...content.services.services];
-                  services[index] = { ...service, name: value };
+                  services[index] = nextService;
                   section("services", { ...content.services, services });
-                }} />
-                <label className={fieldClass}><span className={labelClass}>Icon of the Service</span><IconSelect value={service.icon} onChange={(value) => {
-                  const services = [...content.services.services];
-                  services[index] = { ...service, icon: value };
-                  section("services", { ...content.services, services });
-                }} /></label>
-                <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("services", { ...content.services, services: content.services.services.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" />Remove</Button>
-              </div>
-              <div className="mt-4 grid gap-3">
-                <div className="flex flex-wrap justify-between gap-3"><span className={labelClass}>List of the Service</span><Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => {
-                  const services = [...content.services.services];
-                  services[index] = { ...service, list: [...service.list, { icon: "BadgeCheck", text: "" }] };
-                  section("services", { ...content.services, services });
-                }}><Plus className="h-3.5 w-3.5" />Add Item</Button></div>
-                {service.list.map((item: CmsServiceListItem, itemIndex) => (
-                  <div key={itemIndex} className="grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-center">
-                    <IconSelect value={item.icon} onChange={(value) => {
-                      const services = [...content.services.services];
-                      const list = [...service.list];
-                      list[itemIndex] = { ...item, icon: value };
-                      services[index] = { ...service, list };
-                      section("services", { ...content.services, services });
-                    }} />
-                    <Input value={item.text} onChange={(event) => {
-                      const services = [...content.services.services];
-                      const list = [...service.list];
-                      list[itemIndex] = { ...item, text: event.target.value };
-                      services[index] = { ...service, list };
-                      section("services", { ...content.services, services });
-                    }} />
-                    <Button type="button" size="sm" variant="ghost" className="w-fit text-viaje-red" onClick={() => {
-                      const services = [...content.services.services];
-                      services[index] = { ...service, list: service.list.filter((_, listIndex) => listIndex !== itemIndex) };
-                      section("services", { ...content.services, services });
-                    }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <Button type="button" variant="outline" className="w-fit" onClick={() => section("services", { ...content.services, services: [...content.services.services, newService()] })}><Plus className="h-4 w-4" />Add Service</Button>
+                }}
+                onRemove={() => section("services", { ...content.services, services: content.services.services.filter((_, itemIndex) => itemIndex !== index) })}
+              />
+            ))}
+          </div>
       </AccordionSection>
 
       <AccordionSection title="About Us Section">
@@ -502,72 +738,66 @@ export function WebsiteContentEditor() {
         onDescription={(value) => section("accreditation", { ...content.accreditation, sectionDescription: value })}
         onSubtitle={(value) => section("accreditation", { ...content.accreditation, sectionDescriptionSubs: value })}
       >
-        {content.accreditation.accreditations.map((item, index) => (
-          <div
-            key={index}
-            className="grid gap-6 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[12fr_7fr_1fr] md:items-end"
-          >
-
-            <div className="space-y-6">
-              <TextField
-                label="Name"
-                value={item.name}
-                onChange={(value) => {
-                  const accreditations = [...content.accreditation.accreditations];
-                  accreditations[index] = { ...item, name: value };
-                  section("accreditation", {
-                    ...content.accreditation,
-                    accreditations,
-                  });
-                }}
-              />
-
-              <TextField
-                label="Subtitle"
-                value={item.subtitle}
-                onChange={(value) => {
-                  const accreditations = [...content.accreditation.accreditations];
-                  accreditations[index] = { ...item, subtitle: value };
-                  section("accreditation", {
-                    ...content.accreditation,
-                    accreditations,
-                  });
-                }}
-              />
-            </div>
-
-            <SingleImageUpload
-              label="Accreditation Image"
-              folder="accreditations"
-              value={item.imageUrl}
-              onChange={(value) => {
-                const accreditations = [...content.accreditation.accreditations];
-                accreditations[index] = { ...item, imageUrl: value };
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="w-fit" onClick={() => section("accreditation", { ...content.accreditation, accreditations: [...content.accreditation.accreditations, { imageUrl: "", name: "", subtitle: "" }] })}>
+            <Plus className="h-4 w-4" />
+            Add Accreditation
+          </Button>
+        </div>
+        <div className="grid gap-4">
+          {content.accreditation.accreditations.map((item: CmsAccreditation, index) => (
+            <CmsItemAccordion
+              key={index}
+              title={`Accreditation # ${index + 1} : ${item.name || "Untitled Accreditation"}`}
+              removeLabel="Remove this accreditation"
+              dragLabel={`Reorder ${item.name || `accreditation ${index + 1}`}`}
+              isDragging={draggedItem?.section === "accreditations" && draggedItem.index === index}
+              onDragStart={(event) => startItemDrag("accreditations", index, event)}
+              onDragOver={(event) => allowItemDrop("accreditations", event)}
+              onDrop={(event) => dropItem("accreditations", index, event)}
+              onDragEnd={() => setDraggedItem(null)}
+              onRemove={() =>
                 section("accreditation", {
                   ...content.accreditation,
-                  accreditations,
-                });
-              }}
-            />
-
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-fit text-viaje-red"
-              onClick={() =>
-                section("accreditation", {
-                  ...content.accreditation,
-                  accreditations: content.accreditation.accreditations.filter(
-                    (_, itemIndex) => itemIndex !== index
-                  ),
+                  accreditations: content.accreditation.accreditations.filter((_, itemIndex) => itemIndex !== index),
                 })
               }
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-        <Button type="button" variant="outline" className="w-fit" onClick={() => section("accreditation", { ...content.accreditation, accreditations: [...content.accreditation.accreditations, { imageUrl: "", name: "", subtitle: "" }] })}><Plus className="h-4 w-4" />Add Accreditation</Button>
+              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px] md:items-start">
+                <div className="space-y-6">
+                  <TextField
+                    label="Name"
+                    value={item.name}
+                    onChange={(value) => {
+                      const accreditations = [...content.accreditation.accreditations];
+                      accreditations[index] = { ...item, name: value };
+                      section("accreditation", { ...content.accreditation, accreditations });
+                    }}
+                  />
+                  <TextField
+                    label="Subtitle"
+                    value={item.subtitle}
+                    onChange={(value) => {
+                      const accreditations = [...content.accreditation.accreditations];
+                      accreditations[index] = { ...item, subtitle: value };
+                      section("accreditation", { ...content.accreditation, accreditations });
+                    }}
+                  />
+                </div>
+                <SingleImageUpload
+                  label="Accreditation Image"
+                  folder="accreditations"
+                  value={item.imageUrl}
+                  onChange={(value) => {
+                    const accreditations = [...content.accreditation.accreditations];
+                    accreditations[index] = { ...item, imageUrl: value };
+                    section("accreditation", { ...content.accreditation, accreditations });
+                  }}
+                />
+              </div>
+            </CmsItemAccordion>
+          ))}
+        </div>
       </RepeatableSimpleSection>
 
       <RepeatableSimpleSection
@@ -577,60 +807,66 @@ export function WebsiteContentEditor() {
         onDescription={(value) => section("clients", { ...content.clients, sectionDescription: value })}
         onSubtitle={(value) => section("clients", { ...content.clients, sectionDescriptionSubs: value })}
       >
-        {content.clients.clients.map((client: CmsClient, index) => (
-        
-        <div
-          key={index}
-          className="grid gap-6 rounded-[8px] border border-viaje-line p-4 md:grid-cols-[12fr_7fr_1fr] md:items-end"
-        >
-          <div className="space-y-6">
-            <TextField
-              label="Title"
-              value={client.title}
-              onChange={(value) => {
-                const clients = [...content.clients.clients];
-                clients[index] = { ...client, title: value };
-                section("clients", { ...content.clients, clients });
-              }}
-            />
-            <TextField
-              label="Subtitle"
-              value={client.subtitle}
-              onChange={(value) => {
-                const clients = [...content.clients.clients];
-                clients[index] = { ...client, subtitle: value };
-                section("clients", { ...content.clients, clients });
-              }}
-            />
-          </div>
-          <SingleImageUpload
-            label="Logo"
-            folder="clients"
-            value={client.logoUrl}
-            onChange={(value) => {
-              const clients = [...content.clients.clients];
-              clients[index] = { ...client, logoUrl: value };
-              section("clients", { ...content.clients, clients });
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-fit text-viaje-red"
-            onClick={() =>
-              section("clients", {
-                ...content.clients,
-                clients: content.clients.clients.filter(
-                  (_, itemIndex) => itemIndex !== index
-                ),
-              })
-            }
-          >
-          <Trash2 className="h-4 w-4" />
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="w-fit" onClick={() => section("clients", { ...content.clients, clients: [...content.clients.clients, { logoUrl: "", title: "", subtitle: "" }] })}>
+            <Plus className="h-4 w-4" />
+            Add Client
           </Button>
         </div>
-        ))}
-        <Button type="button" variant="outline" className="w-fit" onClick={() => section("clients", { ...content.clients, clients: [...content.clients.clients, { logoUrl: "", title: "", subtitle: "" }] })}><Plus className="h-4 w-4" />Add Client</Button>
+        <div className="grid gap-4">
+          {content.clients.clients.map((client: CmsClient, index) => (
+            <CmsItemAccordion
+              key={index}
+              title={`Client # ${index + 1} : ${client.title || "Untitled Client"}`}
+              removeLabel="Remove this client"
+              dragLabel={`Reorder ${client.title || `client ${index + 1}`}`}
+              isDragging={draggedItem?.section === "clients" && draggedItem.index === index}
+              onDragStart={(event) => startItemDrag("clients", index, event)}
+              onDragOver={(event) => allowItemDrop("clients", event)}
+              onDrop={(event) => dropItem("clients", index, event)}
+              onDragEnd={() => setDraggedItem(null)}
+              onRemove={() =>
+                section("clients", {
+                  ...content.clients,
+                  clients: content.clients.clients.filter((_, itemIndex) => itemIndex !== index),
+                })
+              }
+            >
+              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px] md:items-start">
+                <div className="space-y-6">
+                  <TextField
+                    label="Title"
+                    value={client.title}
+                    onChange={(value) => {
+                      const clients = [...content.clients.clients];
+                      clients[index] = { ...client, title: value };
+                      section("clients", { ...content.clients, clients });
+                    }}
+                  />
+                  <TextField
+                    label="Subtitle"
+                    value={client.subtitle}
+                    onChange={(value) => {
+                      const clients = [...content.clients.clients];
+                      clients[index] = { ...client, subtitle: value };
+                      section("clients", { ...content.clients, clients });
+                    }}
+                  />
+                </div>
+                <SingleImageUpload
+                  label="Logo"
+                  folder="clients"
+                  value={client.logoUrl}
+                  onChange={(value) => {
+                    const clients = [...content.clients.clients];
+                    clients[index] = { ...client, logoUrl: value };
+                    section("clients", { ...content.clients, clients });
+                  }}
+                />
+              </div>
+            </CmsItemAccordion>
+          ))}
+        </div>
       </RepeatableSimpleSection>
 
       <RepeatableSimpleSection
@@ -640,72 +876,89 @@ export function WebsiteContentEditor() {
         onDescription={(value) => section("recentActivities", { ...content.recentActivities, sectionDescription: value })}
         onSubtitle={(value) => section("recentActivities", { ...content.recentActivities, sectionDescriptionSubs: value })}
       >
-        {content.recentActivities.activities.map((activity: CmsActivity, index) => (
-          <div key={index} className="grid gap-5 rounded-[10px] border border-viaje-line p-5">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-              <div className="grid gap-4">
-                <TextField
-                  label="Date of Activity"
-                  value={activity.date}
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="w-fit" onClick={() => section("recentActivities", { ...content.recentActivities, activities: [...content.recentActivities.activities, newActivity()] })}>
+            <Plus className="h-4 w-4" />
+            Add Activity
+          </Button>
+        </div>
+        <div className="grid gap-4">
+          {content.recentActivities.activities.map((activity: CmsActivity, index) => (
+            <CmsItemAccordion
+              key={index}
+              title={activity.title || "Untitled Activity"}
+              removeLabel="Remove this activity"
+              dragLabel={`Reorder ${activity.title || `activity ${index + 1}`}`}
+              isDragging={draggedItem?.section === "activities" && draggedItem.index === index}
+              onDragStart={(event) => startItemDrag("activities", index, event)}
+              onDragOver={(event) => allowItemDrop("activities", event)}
+              onDrop={(event) => dropItem("activities", index, event)}
+              onDragEnd={() => setDraggedItem(null)}
+              onRemove={() => section("recentActivities", { ...content.recentActivities, activities: content.recentActivities.activities.filter((_, itemIndex) => itemIndex !== index) })}
+            >
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+                <div className="grid gap-4">
+                  <TextField
+                    label="Date of Activity"
+                    value={activity.date}
+                    onChange={(value) => {
+                      const activities = [...content.recentActivities.activities];
+                      activities[index] = { ...activity, date: value };
+                      section("recentActivities", { ...content.recentActivities, activities });
+                    }}
+                  />
+                  <TextField
+                    label="Place"
+                    value={activity.place}
+                    onChange={(value) => {
+                      const activities = [...content.recentActivities.activities];
+                      activities[index] = { ...activity, place: value };
+                      section("recentActivities", { ...content.recentActivities, activities });
+                    }}
+                  />
+                  <TextField
+                    label="Activity Title"
+                    value={activity.title}
+                    onChange={(value) => {
+                      const activities = [...content.recentActivities.activities];
+                      activities[index] = { ...activity, title: value };
+                      section("recentActivities", { ...content.recentActivities, activities });
+                    }}
+                  />
+                </div>
+                <SingleImageUpload
+                  label="Cover Photo"
+                  folder="activities"
+                  value={activity.coverPhotoUrl}
                   onChange={(value) => {
                     const activities = [...content.recentActivities.activities];
-                    activities[index] = { ...activity, date: value };
-                    section("recentActivities", { ...content.recentActivities, activities });
-                  }}
-                />
-                <TextField
-                  label="Place"
-                  value={activity.place}
-                  onChange={(value) => {
-                    const activities = [...content.recentActivities.activities];
-                    activities[index] = { ...activity, place: value };
-                    section("recentActivities", { ...content.recentActivities, activities });
-                  }}
-                />
-                <TextField
-                  label="Activity Title"
-                  value={activity.title}
-                  onChange={(value) => {
-                    const activities = [...content.recentActivities.activities];
-                    activities[index] = { ...activity, title: value };
+                    activities[index] = { ...activity, coverPhotoUrl: value };
                     section("recentActivities", { ...content.recentActivities, activities });
                   }}
                 />
               </div>
-              <SingleImageUpload
-                label="Cover Photo"
-                folder="activities"
-                value={activity.coverPhotoUrl}
+              <TextAreaField
+                label="Activity Description"
+                value={activity.description}
                 onChange={(value) => {
                   const activities = [...content.recentActivities.activities];
-                  activities[index] = { ...activity, coverPhotoUrl: value };
+                  activities[index] = { ...activity, description: value };
                   section("recentActivities", { ...content.recentActivities, activities });
                 }}
               />
-            </div>
-            <TextAreaField
-              label="Activity Description"
-              value={activity.description}
-              onChange={(value) => {
-                const activities = [...content.recentActivities.activities];
-                activities[index] = { ...activity, description: value };
-                section("recentActivities", { ...content.recentActivities, activities });
-              }}
-            />
-            <MultipleImageUpload
-              label="Gallery"
-              folder="activities/gallery"
-              values={activity.galleryUrls}
-              onChange={(galleryUrls) => {
-                const activities = [...content.recentActivities.activities];
-                activities[index] = { ...activity, galleryUrls };
-                section("recentActivities", { ...content.recentActivities, activities });
-              }}
-            />
-            <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("recentActivities", { ...content.recentActivities, activities: content.recentActivities.activities.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" />Remove Activity</Button>
-          </div>
-        ))}
-        <Button type="button" variant="outline" className="w-fit" onClick={() => section("recentActivities", { ...content.recentActivities, activities: [...content.recentActivities.activities, newActivity()] })}><Plus className="h-4 w-4" />Add Activity</Button>
+              <MultipleImageUpload
+                label="Gallery"
+                folder="activities/gallery"
+                values={activity.galleryUrls}
+                onChange={(galleryUrls) => {
+                  const activities = [...content.recentActivities.activities];
+                  activities[index] = { ...activity, galleryUrls };
+                  section("recentActivities", { ...content.recentActivities, activities });
+                }}
+              />
+            </CmsItemAccordion>
+          ))}
+        </div>
       </RepeatableSimpleSection>
 
       <RepeatableSimpleSection
@@ -715,32 +968,49 @@ export function WebsiteContentEditor() {
         onDescription={(value) => section("proofTransactions", { ...content.proofTransactions, sectionDescription: value })}
         onSubtitle={(value) => section("proofTransactions", { ...content.proofTransactions, sectionDescriptionSubs: value })}
       >
-        {content.proofTransactions.proofs.map((proof: CmsProofTransaction, index) => (
-          <div key={index} className="grid gap-4 rounded-[8px] border border-viaje-line p-4">
-            <TextField label="Proof of Transaction Title" value={proof.title} onChange={(value) => {
-              const proofs = [...content.proofTransactions.proofs];
-              proofs[index] = { ...proof, title: value };
-              section("proofTransactions", { ...content.proofTransactions, proofs });
-            }} />
-            <TextAreaField label="Proof of Transaction Description" value={proof.description} onChange={(value) => {
-              const proofs = [...content.proofTransactions.proofs];
-              proofs[index] = { ...proof, description: value };
-              section("proofTransactions", { ...content.proofTransactions, proofs });
-            }} />
-            <MultipleImageUpload
-              label="Gallery"
-              folder="proof-transactions"
-              values={proof.galleryUrls}
-              onChange={(galleryUrls) => {
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="w-fit" onClick={() => section("proofTransactions", { ...content.proofTransactions, proofs: [...content.proofTransactions.proofs, newProof()] })}>
+            <Plus className="h-4 w-4" />
+            Add Proof of Transaction
+          </Button>
+        </div>
+        <div className="grid gap-4">
+          {content.proofTransactions.proofs.map((proof: CmsProofTransaction, index) => (
+            <CmsItemAccordion
+              key={index}
+              title={`Proof # ${index + 1} : ${proof.title || "Untitled Proof"}`}
+              removeLabel="Remove this proof"
+              dragLabel={`Reorder ${proof.title || `proof ${index + 1}`}`}
+              isDragging={draggedItem?.section === "proofs" && draggedItem.index === index}
+              onDragStart={(event) => startItemDrag("proofs", index, event)}
+              onDragOver={(event) => allowItemDrop("proofs", event)}
+              onDrop={(event) => dropItem("proofs", index, event)}
+              onDragEnd={() => setDraggedItem(null)}
+              onRemove={() => section("proofTransactions", { ...content.proofTransactions, proofs: content.proofTransactions.proofs.filter((_, itemIndex) => itemIndex !== index) })}
+            >
+              <TextField label="Proof of Transaction Title" value={proof.title} onChange={(value) => {
                 const proofs = [...content.proofTransactions.proofs];
-                proofs[index] = { ...proof, galleryUrls };
+                proofs[index] = { ...proof, title: value };
                 section("proofTransactions", { ...content.proofTransactions, proofs });
-              }}
-            />
-            <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("proofTransactions", { ...content.proofTransactions, proofs: content.proofTransactions.proofs.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" />Remove Proof</Button>
-          </div>
-        ))}
-        <Button type="button" variant="outline" className="w-fit" onClick={() => section("proofTransactions", { ...content.proofTransactions, proofs: [...content.proofTransactions.proofs, newProof()] })}><Plus className="h-4 w-4" />Add Proof of Transaction</Button>
+              }} />
+              <TextAreaField label="Proof of Transaction Description" value={proof.description} onChange={(value) => {
+                const proofs = [...content.proofTransactions.proofs];
+                proofs[index] = { ...proof, description: value };
+                section("proofTransactions", { ...content.proofTransactions, proofs });
+              }} />
+              <MultipleImageUpload
+                label="Gallery"
+                folder="proof-transactions"
+                values={proof.galleryUrls}
+                onChange={(galleryUrls) => {
+                  const proofs = [...content.proofTransactions.proofs];
+                  proofs[index] = { ...proof, galleryUrls };
+                  section("proofTransactions", { ...content.proofTransactions, proofs });
+                }}
+              />
+            </CmsItemAccordion>
+          ))}
+        </div>
       </RepeatableSimpleSection>
         </div>
         <WebsiteContentPreview content={content} />
