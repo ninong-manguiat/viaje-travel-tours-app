@@ -57,6 +57,13 @@ export function normalizePublicR2Url(bucket: ViajeBucket, url: string) {
   return `${baseUrl}/${suffix.slice(bucketName.length + 1)}`;
 }
 
+export function publicR2KeyFromUrl(bucket: ViajeBucket, url: string) {
+  const normalized = normalizePublicR2Url(bucket, url);
+  const baseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  if (!baseUrl || !normalized.startsWith(`${baseUrl}/`)) return "";
+  return normalized.slice(baseUrl.length).replace(/^\/+/, "");
+}
+
 export async function uploadFile(bucket: ViajeBucket, key: string, body: Buffer | Uint8Array | string, contentType?: string) {
   const Bucket = resolveBucket(bucket);
   await getR2Client().send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Anchor,
@@ -187,68 +187,178 @@ function TextAreaField({ label, value, onChange }: { label: string; value: strin
   );
 }
 
-function ImageUploadField({ label, value, folder, onUploaded }: { label: string; value: string; folder: string; onUploaded: (value: string) => void }) {
+async function deleteWebsiteContentImage(url: string) {
+  if (!url) return;
+  await fetch("/api/admin/website-content/upload", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url })
+  }).catch(() => undefined);
+}
+
+function SingleImageUpload({ label, value, folder, onChange }: { label: string; value: string; folder: string; onChange: (value: string) => void }) {
   const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function removeCurrent() {
+    await deleteWebsiteContentImage(value);
+    onChange("");
+  }
 
   async function upload(file?: File) {
     if (!file) return;
     setUploading(true);
     try {
+      if (value) {
+        await deleteWebsiteContentImage(value);
+      }
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", folder);
       const response = await fetch("/api/admin/website-content/upload", { method: "POST", body: formData });
       if (!response.ok) throw new Error("Upload failed");
       const data = await response.json();
-      onUploaded(data.url);
+      onChange(data.url);
     } finally {
       setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <div className="grid gap-2" aria-label={label}>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-viaje-line bg-viaje-paper px-3 text-center text-sm font-semibold text-viaje-soft transition hover:bg-viaje-paperAlt">
-          <UploadCloud className="h-4 w-4" />
-          {uploading ? "Uploading..." : "Upload Image"}
-          <input type="file" accept="image/*" className="hidden" onChange={(event) => upload(event.target.files?.[0])} />
-        </label>
-        <div className="aspect-square overflow-hidden rounded-[10px] border border-viaje-line bg-viaje-paper">
-          {value ? (
-            <img src={value} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs font-medium text-viaje-soft">
-              Preview
-            </div>
-          )}
+    <div className="relative" aria-label={label}>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(event) => upload(event.target.files?.[0])} />
+      {value ? (
+        <div className="group relative aspect-square overflow-hidden rounded-[10px] border border-viaje-line bg-viaje-paper">
+          <img src={value} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="flex flex-col items-center gap-2 rounded-[10px] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              disabled={uploading}
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-white text-viaje-soft">
+                <UploadCloud className="h-4 w-4" />
+              </span>
+              {uploading ? "Uploading..." : "Change photo"}
+            </button>
+            <button
+              type="button"
+              onClick={removeCurrent}
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-viaje-red transition hover:bg-white"
+              aria-label={`Remove ${label}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-viaje-line bg-viaje-paper text-sm font-semibold text-viaje-soft transition hover:bg-viaje-paperAlt"
+          disabled={uploading}
+        >
+          <UploadCloud className="h-5 w-5" />
+          {uploading ? "Uploading..." : "Upload Image"}
+        </button>
+      )}
     </div>
   );
 }
 
-function GalleryEditor({ label, values, folder, onChange }: { label: string; values: string[]; folder: string; onChange: (values: string[]) => void }) {
+function MultipleImageUpload({ label, values, folder, onChange, maxPhotos = 4 }: { label: string; values: string[]; folder: string; onChange: (values: string[]) => void; maxPhotos?: number }) {
+  const [uploading, setUploading] = useState(false);
+  const [warning, setWarning] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const canUpload = values.length < maxPhotos;
+
+  async function removePhoto(index: number) {
+    const url = values[index];
+    await deleteWebsiteContentImage(url);
+    onChange(values.filter((_, itemIndex) => itemIndex !== index));
+    setWarning("");
+  }
+
+  async function upload(fileList?: FileList | null) {
+    const files = Array.from(fileList ?? []);
+    if (!files.length) return;
+
+    const remainingSlots = maxPhotos - values.length;
+    if (remainingSlots <= 0) {
+      setWarning(`Maximum of ${maxPhotos} photos only.`);
+      return;
+    }
+
+    const selectedFiles = files.slice(0, remainingSlots);
+    setWarning(files.length > remainingSlots ? `Only ${remainingSlots} more photo${remainingSlots === 1 ? "" : "s"} can be uploaded. Maximum is ${maxPhotos}.` : "");
+    setUploading(true);
+
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", folder);
+        const response = await fetch("/api/admin/website-content/upload", { method: "POST", body: formData });
+        if (!response.ok) throw new Error("Upload failed");
+        const data = await response.json();
+        uploadedUrls.push(data.url);
+      }
+      onChange([...values, ...uploadedUrls]);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <span className={labelClass}>{label}</span>
-        <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => onChange([...values, ""])}><Plus className="h-3.5 w-3.5" />Add</Button>
+        <span className={`text-xs font-medium ${values.length >= maxPhotos ? "text-viaje-red" : "text-viaje-soft"}`}>
+          {warning || `${values.length}/${maxPhotos} photos uploaded. Maximum of ${maxPhotos} photos only.`}
+        </span>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        {values.map((value, index) => (
-          <div key={index} className="rounded-[8px] border border-viaje-line p-3">
-            <ImageUploadField
-              label={`Image ${index + 1}`}
-              value={value}
-              folder={folder}
-              onUploaded={(url) => onChange(values.map((item, itemIndex) => itemIndex === index ? url : item))}
-            />
-            <Button type="button" size="sm" variant="ghost" className="mt-2 w-fit text-viaje-red" onClick={() => onChange(values.filter((_, itemIndex) => itemIndex !== index))}>
-              <Trash2 className="h-3.5 w-3.5" />Remove
-            </Button>
-          </div>
-        ))}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(event) => upload(event.target.files)}
+      />
+      <div className="rounded-[10px] border border-viaje-line p-4">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {values.map((value, index) => (
+            <div key={`${value}-${index}`} className="grid gap-2">
+              <div className="aspect-square overflow-hidden rounded-[10px] border border-viaje-line bg-viaje-paper">
+                <img src={value} alt="" className="h-full w-full object-cover" />
+              </div>
+              <button
+                type="button"
+                onClick={() => removePhoto(index)}
+                className="flex w-fit items-center gap-1.5 text-xs font-semibold text-viaje-red transition hover:text-viaje-red/80"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            </div>
+          ))}
+          {canUpload && (
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-viaje-line bg-viaje-paper text-sm font-semibold text-viaje-soft transition hover:bg-viaje-paperAlt"
+              disabled={uploading}
+            >
+              <UploadCloud className="h-5 w-5" />
+              {uploading ? "Uploading..." : "Upload Image"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -367,7 +477,14 @@ export function WebsiteContentEditor() {
 
       <AccordionSection title="About Us Section">
         <div className="grid gap-4 md:grid-cols-2">
-        <div className="max-w-md md:col-span-2"><ImageUploadField label="Photo of the Office" folder="about-us" value={content.aboutUs.officePhotoUrl} onUploaded={(value) => section("aboutUs", { ...content.aboutUs, officePhotoUrl: value })} /></div>
+        <div className="max-w-md md:col-span-2">
+          <SingleImageUpload
+            label="Photo of the Office"
+            folder="about-us"
+            value={content.aboutUs.officePhotoUrl}
+            onChange={(value) => section("aboutUs", { ...content.aboutUs, officePhotoUrl: value })}
+          />
+        </div>
           <TextField label="Section Description" value={content.aboutUs.sectionDescription} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescription: value })} />
           <TextField label="Section Description Subs" value={content.aboutUs.sectionDescriptionSubs} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescriptionSubs: value })} />
           <TextField label="Contact Number" value={content.aboutUs.contactNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, contactNumber: value })} />
@@ -419,11 +536,11 @@ export function WebsiteContentEditor() {
               />
             </div>
 
-            <ImageUploadField
+            <SingleImageUpload
               label="Accreditation Image"
               folder="accreditations"
               value={item.imageUrl}
-              onUploaded={(value) => {
+              onChange={(value) => {
                 const accreditations = [...content.accreditation.accreditations];
                 accreditations[index] = { ...item, imageUrl: value };
                 section("accreditation", {
@@ -486,11 +603,11 @@ export function WebsiteContentEditor() {
               }}
             />
           </div>
-          <ImageUploadField
+          <SingleImageUpload
             label="Logo"
             folder="clients"
             value={client.logoUrl}
-            onUploaded={(value) => {
+            onChange={(value) => {
               const clients = [...content.clients.clients];
               clients[index] = { ...client, logoUrl: value };
               section("clients", { ...content.clients, clients });
@@ -524,41 +641,67 @@ export function WebsiteContentEditor() {
         onSubtitle={(value) => section("recentActivities", { ...content.recentActivities, sectionDescriptionSubs: value })}
       >
         {content.recentActivities.activities.map((activity: CmsActivity, index) => (
-          <div key={index} className="grid gap-4 rounded-[8px] border border-viaje-line p-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <ImageUploadField label="Cover Photo" folder="activities" value={activity.coverPhotoUrl} onUploaded={(value) => {
-                const activities = [...content.recentActivities.activities];
-                activities[index] = { ...activity, coverPhotoUrl: value };
-                section("recentActivities", { ...content.recentActivities, activities });
-              }} />
+          <div key={index} className="grid gap-5 rounded-[10px] border border-viaje-line p-5">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
               <div className="grid gap-4">
-                <TextField label="Date of Activity" value={activity.date} onChange={(value) => {
-                  const activities = [...content.recentActivities.activities];
-                  activities[index] = { ...activity, date: value };
-                  section("recentActivities", { ...content.recentActivities, activities });
-                }} />
-                <TextField label="Place" value={activity.place} onChange={(value) => {
-                  const activities = [...content.recentActivities.activities];
-                  activities[index] = { ...activity, place: value };
-                  section("recentActivities", { ...content.recentActivities, activities });
-                }} />
-                <TextField label="Activity Title" value={activity.title} onChange={(value) => {
-                  const activities = [...content.recentActivities.activities];
-                  activities[index] = { ...activity, title: value };
-                  section("recentActivities", { ...content.recentActivities, activities });
-                }} />
+                <TextField
+                  label="Date of Activity"
+                  value={activity.date}
+                  onChange={(value) => {
+                    const activities = [...content.recentActivities.activities];
+                    activities[index] = { ...activity, date: value };
+                    section("recentActivities", { ...content.recentActivities, activities });
+                  }}
+                />
+                <TextField
+                  label="Place"
+                  value={activity.place}
+                  onChange={(value) => {
+                    const activities = [...content.recentActivities.activities];
+                    activities[index] = { ...activity, place: value };
+                    section("recentActivities", { ...content.recentActivities, activities });
+                  }}
+                />
+                <TextField
+                  label="Activity Title"
+                  value={activity.title}
+                  onChange={(value) => {
+                    const activities = [...content.recentActivities.activities];
+                    activities[index] = { ...activity, title: value };
+                    section("recentActivities", { ...content.recentActivities, activities });
+                  }}
+                />
               </div>
+              <SingleImageUpload
+                label="Cover Photo"
+                folder="activities"
+                value={activity.coverPhotoUrl}
+                onChange={(value) => {
+                  const activities = [...content.recentActivities.activities];
+                  activities[index] = { ...activity, coverPhotoUrl: value };
+                  section("recentActivities", { ...content.recentActivities, activities });
+                }}
+              />
             </div>
-            <TextAreaField label="Activity Description" value={activity.description} onChange={(value) => {
-              const activities = [...content.recentActivities.activities];
-              activities[index] = { ...activity, description: value };
-              section("recentActivities", { ...content.recentActivities, activities });
-            }} />
-            <GalleryEditor label="Gallery" folder="activities/gallery" values={activity.galleryUrls} onChange={(galleryUrls) => {
-              const activities = [...content.recentActivities.activities];
-              activities[index] = { ...activity, galleryUrls };
-              section("recentActivities", { ...content.recentActivities, activities });
-            }} />
+            <TextAreaField
+              label="Activity Description"
+              value={activity.description}
+              onChange={(value) => {
+                const activities = [...content.recentActivities.activities];
+                activities[index] = { ...activity, description: value };
+                section("recentActivities", { ...content.recentActivities, activities });
+              }}
+            />
+            <MultipleImageUpload
+              label="Gallery"
+              folder="activities/gallery"
+              values={activity.galleryUrls}
+              onChange={(galleryUrls) => {
+                const activities = [...content.recentActivities.activities];
+                activities[index] = { ...activity, galleryUrls };
+                section("recentActivities", { ...content.recentActivities, activities });
+              }}
+            />
             <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("recentActivities", { ...content.recentActivities, activities: content.recentActivities.activities.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" />Remove Activity</Button>
           </div>
         ))}
@@ -584,11 +727,16 @@ export function WebsiteContentEditor() {
               proofs[index] = { ...proof, description: value };
               section("proofTransactions", { ...content.proofTransactions, proofs });
             }} />
-            <GalleryEditor label="Gallery" folder="proof-transactions" values={proof.galleryUrls} onChange={(galleryUrls) => {
-              const proofs = [...content.proofTransactions.proofs];
-              proofs[index] = { ...proof, galleryUrls };
-              section("proofTransactions", { ...content.proofTransactions, proofs });
-            }} />
+            <MultipleImageUpload
+              label="Gallery"
+              folder="proof-transactions"
+              values={proof.galleryUrls}
+              onChange={(galleryUrls) => {
+                const proofs = [...content.proofTransactions.proofs];
+                proofs[index] = { ...proof, galleryUrls };
+                section("proofTransactions", { ...content.proofTransactions, proofs });
+              }}
+            />
             <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => section("proofTransactions", { ...content.proofTransactions, proofs: content.proofTransactions.proofs.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" />Remove Proof</Button>
           </div>
         ))}
