@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { defaultPackages, newPackage, normalizePackage } from "@/lib/package-content";
+import { listPackages } from "@/lib/package-data";
+import { newPackage, normalizePackage } from "@/lib/package-content";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,10 +19,7 @@ async function collectionRef() {
 export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
-  const snapshot = await (await collectionRef()).orderBy("title").get();
-  const packages = snapshot.empty
-    ? defaultPackages()
-    : snapshot.docs.map((doc) => normalizePackage({ id: doc.id, ...doc.data() }));
+  const packages = await listPackages();
 
   return NextResponse.json({ packages });
 }

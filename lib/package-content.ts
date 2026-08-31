@@ -26,6 +26,8 @@ export function newPackage(): TravelPackage {
     country: "",
     type: "domestic",
     duration: "",
+    airline: "Cebu Pacific",
+    hotel: "3-4 Star Hotels",
     description: "",
     coverImageUrl: "",
     galleryUrls: [],
@@ -48,12 +50,17 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
   const id = input?.id ?? `pkg-${Date.now()}`;
 
   return {
-    ...fallback,
-    ...input,
     id,
     slug: input?.slug || slugify(title),
     title,
+    destination: input?.destination ?? fallback.destination,
+    country: input?.country ?? fallback.country,
     type: input?.type === "international" ? "international" : "domestic",
+    duration: input?.duration ?? fallback.duration,
+    airline: input?.airline || fallback.airline,
+    hotel: input?.hotel || fallback.hotel,
+    description: input?.description ?? fallback.description,
+    coverImageUrl: input?.coverImageUrl ?? fallback.coverImageUrl,
     status: packageStatuses.includes(input?.status as PackageStatus) ? input?.status as PackageStatus : "draft",
     price: numberValue(input?.price ?? legacyPricing?.adult),
     galleryUrls: Array.isArray(input?.galleryUrls) ? input.galleryUrls.filter(Boolean) : [],
@@ -69,6 +76,8 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
     itinerary: Array.isArray(input?.itinerary)
       ? input.itinerary.map((item) => ({
           day: item.day || "",
+          name: item.name || "",
+          icon: item.icon || item.activities?.[0]?.icon || "MapPin",
           imageUrl: item.imageUrl || "",
           activities: Array.isArray(item.activities)
             ? item.activities.map((activity) => ({
@@ -78,6 +87,7 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
             : []
         }))
       : [],
+    brochureUrl: input?.brochureUrl ?? fallback.brochureUrl,
     inclusions: Array.isArray(input?.inclusions) ? input.inclusions.filter(Boolean) : [],
     exclusions: Array.isArray(input?.exclusions) ? input.exclusions.filter(Boolean) : [],
     requirements: Array.isArray(input?.requirements) ? input.requirements.filter(Boolean) : [],

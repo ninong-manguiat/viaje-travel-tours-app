@@ -23,6 +23,8 @@ export interface TravelPackage {
   country: string;
   type: "domestic" | "international";
   duration: string;
+  airline?: string;
+  hotel?: string;
   description: string;
   coverImageUrl: string;
   galleryUrls: string[];
@@ -37,6 +39,8 @@ export interface TravelPackage {
   }>;
   itinerary: Array<{
     day: string;
+    name?: string;
+    icon?: string;
     imageUrl: string;
     activities: Array<{ activity: string; icon: string }>;
   }>;

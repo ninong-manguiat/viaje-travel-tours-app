@@ -100,7 +100,7 @@ function newProof(): CmsProofTransaction {
   return { title: "New Proof", description: "", galleryUrls: [] };
 }
 
-function IconSelect({ value, onChange }: { value: CmsIconName; onChange: (value: CmsIconName) => void }) {
+export function IconSelect({ value, onChange }: { value: CmsIconName; onChange: (value: CmsIconName) => void }) {
   const [open, setOpen] = useState(false);
   const SelectedIcon = iconMap[value];
 

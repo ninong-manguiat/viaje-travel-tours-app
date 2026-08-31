@@ -3,10 +3,14 @@ import { PackageCard } from "@/components/domain/package-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { packages } from "@/lib/sample-data";
+import { listPackages } from "@/lib/package-data";
 import { Phone, Search, SlidersHorizontal } from "lucide-react";
 
-export default function PackagesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PackagesPage() {
+  const packages = await listPackages();
+
   return (
     <main>
       <section className="relative overflow-hidden bg-gradient-to-br from-viaje-navy via-viaje-navy2 to-viaje-navy3 text-white">
@@ -56,6 +60,11 @@ export default function PackagesPage() {
 
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {packages.map((item) => <PackageCard key={item.id} item={item} />)}
+          {!packages.length && (
+            <div className="rounded-[10px] border border-dashed border-viaje-line bg-white p-6 text-sm text-viaje-soft md:col-span-2 lg:col-span-3">
+              No packages are available yet.
+            </div>
+          )}
         </div>
         </section>
     </main>

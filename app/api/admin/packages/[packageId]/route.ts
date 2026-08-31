@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { defaultPackages, normalizePackage } from "@/lib/package-content";
+import { getPackageById } from "@/lib/package-data";
+import { normalizePackage } from "@/lib/package-content";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,13 +19,10 @@ async function docRef(packageId: string) {
 export async function GET(request: NextRequest, { params }: { params: { packageId: string } }) {
   if (!isAdmin(request)) return unauthorized();
 
-  const snapshot = await (await docRef(params.packageId)).get();
-  const fallback = defaultPackages().find((item) => item.id === params.packageId || item.slug === params.packageId);
-  if (!snapshot.exists) {
-    return fallback ? NextResponse.json({ package: fallback }) : NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const pkg = await getPackageById(params.packageId);
+  if (!pkg) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ package: normalizePackage({ id: snapshot.id, ...snapshot.data() }) });
+  return NextResponse.json({ package: pkg });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { packageId: string } }) {

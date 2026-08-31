@@ -50,12 +50,21 @@ export function PackageList() {
         <CardContent>
           <Table>
             <THead>
-              <TR><TH>Title</TH><TH>Destination</TH><TH>Price</TH><TH>Dates</TH><TH>Status</TH><TH /></TR>
+              <TR><TH>Cover</TH><TH>Title</TH><TH>Destination</TH><TH>Price</TH><TH>Dates</TH><TH>Status</TH><TH /></TR>
             </THead>
             <TBody>
-              {loading && <TR><TD colSpan={6}>Loading packages...</TD></TR>}
+              {loading && <TR><TD colSpan={7}>Loading packages...</TD></TR>}
               {!loading && packages.map((pkg) => (
                 <TR key={pkg.id}>
+                  <TD>
+                    <div className="h-12 w-16 overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper">
+                      {pkg.coverImageUrl ? (
+                        <img src={pkg.coverImageUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full bg-viaje-paperAlt" />
+                      )}
+                    </div>
+                  </TD>
                   <TD>{pkg.title}</TD>
                   <TD>{pkg.destination}</TD>
                   <TD>{formatPeso(pkg.price)}</TD>
