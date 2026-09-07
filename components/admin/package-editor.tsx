@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ExternalLink, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import { PackageGalleryMediaField, PackageMediaField } from "@/components/admin/package-media-field";
 import { IconSelect } from "@/components/admin/website-content-editor";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,16 @@ function reorderItems<T>(items: T[], fromIndex: number, toIndex: number) {
   const [movedItem] = nextItems.splice(fromIndex, 1);
   nextItems.splice(toIndex, 0, movedItem);
   return nextItems;
+}
+
+function persistedPackageSlug(snapshot: string) {
+  if (!snapshot) return "";
+  try {
+    const savedPackage = JSON.parse(snapshot) as Partial<TravelPackage>;
+    return typeof savedPackage.slug === "string" ? savedPackage.slug : "";
+  } catch {
+    return "";
+  }
 }
 
 function ItineraryAccordionItem({
@@ -353,6 +363,17 @@ export function PackageEditor({ packageId }: { packageId: string }) {
   const selectedItinerary = pkg.itinerary[selectedItineraryIndex] ?? null;
   const selectedItineraryIcon = selectedItinerary ? itineraryIcon(selectedItinerary) : "MapPin";
   const selectedCmsItineraryIcon = cmsIcon(selectedItineraryIcon);
+  const persistedSlug = persistedPackageSlug(savedSnapshot);
+  const canPreview = !isNew && Boolean(persistedSlug) && persistedSlug === slugify(persistedSlug);
+
+  function previewPackage() {
+    if (!canPreview) return;
+    const baseUrl = process.env.NODE_ENV === "development"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const previewUrl = new URL(`/packages/${persistedSlug}`, baseUrl);
+    window.open(previewUrl.toString(), "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="space-y-6">
@@ -363,6 +384,10 @@ export function PackageEditor({ packageId }: { packageId: string }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" className="w-fit" onClick={handleBack}><ArrowLeft className="h-4 w-4" />Back</Button>
+          <Button type="button" variant="outline" className="w-fit" onClick={previewPackage} disabled={!canPreview}>
+            <ExternalLink className="h-4 w-4" />
+            Preview
+          </Button>
           <Button className="w-fit" onClick={() => save()} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Package"}</Button>
         </div>
       </div>

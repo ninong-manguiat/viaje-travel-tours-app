@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Anchor,
   ArrowLeft,
@@ -116,9 +117,10 @@ function PaxCounter({ value, onChange }: { value: number; onChange: (value: numb
 }
 
 export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
-  const [selectedDepartureId, setSelectedDepartureId] = useState(pkg.travelDates[0]?.id ?? "");
-  const [selectedAddonId, setSelectedAddonId] = useState("none");
-  const [pax, setPax] = useState(1);
+  const searchParams = useSearchParams();
+  const [selectedDepartureId, setSelectedDepartureId] = useState(searchParams.get("departureId") || pkg.travelDates[0]?.id || "");
+  const [selectedAddonId, setSelectedAddonId] = useState(searchParams.get("addonId") || "none");
+  const [pax, setPax] = useState(Math.max(1, Number(searchParams.get("pax")) || 1));
   const airline = getAirline(pkg.airline);
   const selectedDeparture = pkg.travelDates.find((date) => date.id === selectedDepartureId) ?? pkg.travelDates[0] ?? null;
   const selectedAddon = pkg.addons.find((addon) => addon.id === selectedAddonId) ?? null;
@@ -342,7 +344,9 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
                 <div className="flex justify-between text-lg"><span className="font-semibold">Final Amount</span><strong>{formatPeso(finalAmount)}</strong></div>
                 <br/>
               </div>
-              <Link href={`/book/${pkg.id}?departureId=${selectedDeparture?.id ?? ""}`}><Button className="w-full">Book This Package</Button></Link>
+              <Link href={`/book/${pkg.id}?departureId=${selectedDeparture?.id ?? ""}&addonId=${selectedAddon?.id ?? "none"}&pax=${pax}`}>
+                <Button className="w-full">Book This Package</Button>
+              </Link>
             </CardContent>
           </Card>
         </aside>

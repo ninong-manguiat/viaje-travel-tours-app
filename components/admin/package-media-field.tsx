@@ -5,7 +5,19 @@ import { Trash2, UploadCloud } from "lucide-react";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
 
-export function PackageMediaField({ label, value, folder, onUploaded }: { label: string; value: string; folder: string; onUploaded: (value: string) => void }) {
+export function PackageMediaField({
+  label,
+  value,
+  folder,
+  onUploaded,
+  uploadUrl = "/api/admin/website-content/upload",
+}: {
+  label: string;
+  value: string;
+  folder: string;
+  onUploaded: (value: string) => void;
+  uploadUrl?: string;
+}) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -16,7 +28,7 @@ export function PackageMediaField({ label, value, folder, onUploaded }: { label:
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", folder);
-      const response = await fetch("/api/admin/website-content/upload", { method: "POST", body: formData });
+      const response = await fetch(uploadUrl, { method: "POST", body: formData });
       if (!response.ok) throw new Error("Upload failed");
       const data = await response.json();
       onUploaded(data.url);

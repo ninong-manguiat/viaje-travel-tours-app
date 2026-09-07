@@ -44,6 +44,7 @@ import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { packages } from "@/lib/sample-data";
+import { listPackages } from "@/lib/package-data";
 import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type WebsiteContent } from "@/lib/website-content";
 
@@ -221,6 +222,10 @@ function telHref(value: string) {
 
 export default async function HomePage() {
   const websiteContent = await getWebsiteContent();
+  const popularPackages = (await listPackages()).filter((item) =>
+    item.status === "published" &&
+    (!item.travelDates.length || item.travelDates.some((date) => date.availabilityStatus !== "sold_out"))
+  );
   const cmsServices = websiteContent.services.services.map((service) => ({
     title: service.name,
     icon: iconMap[service.icon],
@@ -429,7 +434,12 @@ export default async function HomePage() {
             <Link href="/packages"><Button variant="outline">View All</Button></Link>
           </div>
           <div className="grid gap-5 md:grid-cols-3">
-            {packages.map((item) => <PackageCard key={item.id} item={item} />)}
+            {popularPackages.map((item) => <PackageCard key={item.id} item={item} />)}
+            {!popularPackages.length && (
+              <div className="rounded-[10px] border border-dashed border-viaje-line bg-white p-6 text-sm text-viaje-soft md:col-span-3">
+                No popular departures are available yet.
+              </div>
+            )}
           </div>
         </div>
       </section>
