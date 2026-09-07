@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, UploadCloud } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, UploadCloud } from "lucide-react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,14 @@ import { isoCountryCodes } from "@/lib/countries";
 import type { TravelPackage } from "@/lib/types";
 import { formatDate, formatPeso } from "@/lib/utils";
 
-const steps = ["Booking Summary", "Guests", "Review", "Payment"];
+const steps = [
+  { id: "guests", label: "Guests" },
+  { id: "payment", label: "Payment" },
+] as const;
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
 const inputClass = "h-11 rounded-[10px] border border-viaje-line bg-viaje-paper px-3.5 text-sm text-viaje-ink outline-none focus-visible:ring-2 focus-visible:ring-ring";
+type CheckoutStep = typeof steps[number]["id"];
 
 type Guest = {
   firstName: string;
@@ -30,6 +35,25 @@ type GroupContact = {
   mobileNumber: string;
   emailAddress: string;
 };
+
+export type GuestCheckoutDraft = {
+  id: string;
+  status: "draft" | "completed";
+  packageId: string;
+  packageSlug: string;
+  departureId: string;
+  addonId: string;
+  pax: number;
+  guests: Guest[];
+  groupContact: GroupContact;
+  useGuestOne?: boolean;
+  paymentMethodId: string;
+  paymentProofUrl: string;
+  paymentReference: string;
+  currentStep: CheckoutStep;
+};
+
+type ValidationErrors = Record<string, string>;
 
 const paymentMethods = [
   { id: "gcash", label: "GCash", color: "#0b5cff" },
@@ -48,6 +72,37 @@ function upper(value: string) {
 
 function newGuest(): Guest {
   return { firstName: "", lastName: "", nationality: "PH", isPwd: false, passportNumber: "" };
+}
+
+function normalizedStep(value?: string): CheckoutStep {
+  return value === "payment" ? "payment" : "guests";
+}
+
+function normalizeGuests(value: Guest[] | undefined, count: number) {
+  const existing = Array.isArray(value) ? value : [];
+  return Array.from({ length: count }, (_, index) => ({ ...newGuest(), ...existing[index] }));
+}
+
+function hasGuestInfo(guests: Guest[], groupContact: GroupContact) {
+  return guests.every((guest) => guest.firstName && guest.lastName && guest.nationality) &&
+    Boolean(groupContact.firstName && groupContact.lastName && groupContact.mobileNumber && groupContact.emailAddress);
+}
+
+function validateGuestStep(guests: Guest[], groupContact: GroupContact) {
+  const errors: ValidationErrors = {};
+
+  guests.forEach((guest, index) => {
+    if (!guest.firstName.trim()) errors[`guest-${index}-firstName`] = `Guest ${index + 1} first name is required.`;
+    if (!guest.lastName.trim()) errors[`guest-${index}-lastName`] = `Guest ${index + 1} last name is required.`;
+    if (!guest.nationality.trim()) errors[`guest-${index}-nationality`] = `Guest ${index + 1} nationality is required.`;
+  });
+
+  if (!groupContact.firstName.trim()) errors.contactFirstName = "Group contact first name is required.";
+  if (!groupContact.lastName.trim()) errors.contactLastName = "Group contact last name is required.";
+  if (!groupContact.mobileNumber.trim()) errors.contactMobileNumber = "Group contact mobile number is required.";
+  if (!groupContact.emailAddress.trim()) errors.contactEmailAddress = "Group contact email address is required.";
+
+  return errors;
 }
 
 function countryName(code: string) {
@@ -76,7 +131,19 @@ function SummaryRows({
 
   return (
     <div className="space-y-3 text-sm">
-      <div className="flex justify-between gap-4"><span>Selected departure</span><strong>{selectedDeparture ? `${formatDate(selectedDeparture.startDate)} - ${formatDate(selectedDeparture.endDate)}` : "TBD"}</strong></div>
+      <div className="flex justify-between gap-4"><span>Selected departure</span>
+        <strong>
+        {selectedDeparture ? (
+              <>
+                {formatDate(selectedDeparture.startDate)} -
+                <br />
+                {formatDate(selectedDeparture.endDate)}
+              </>
+              ) : (
+              "TBD"
+              )}
+        </strong>
+      </div>
       <div className="flex justify-between gap-4"><span>Selected add-on</span><strong>{selectedAddon?.label ?? "None"}</strong></div>
       <div className="flex justify-between gap-4"><span>Number of guests</span><strong>{pax}</strong></div>
       <div className="flex justify-between gap-4"><span>Package/base amount</span><strong>{formatPeso(pkg.price)}</strong></div>
@@ -94,30 +161,99 @@ export function GuestCheckoutClient({
   departureId,
   addonId,
   pax,
+  draft,
+  requestedStep,
 }: {
   pkg: TravelPackage;
   departureId: string;
   addonId: string;
   pax: number;
+  draft?: GuestCheckoutDraft;
+  requestedStep?: string;
 }) {
-  const guestCount = Math.max(1, Math.floor(pax));
-  const selectedDeparture = pkg.travelDates.find((item) => item.id === departureId) ?? pkg.travelDates[0] ?? null;
-  const selectedAddon = pkg.addons.find((item) => item.id === addonId) ?? null;
+  const router = useRouter();
+  const initialGuestCount = Math.max(1, Math.floor(draft?.pax ?? pax));
+  const initialDepartureId = draft?.departureId ?? departureId;
+  const initialAddonId = draft?.addonId ?? addonId;
+  const initialGuests = normalizeGuests(draft?.guests, initialGuestCount);
+  const initialGroupContact = draft?.groupContact ?? { firstName: "", lastName: "", mobileNumber: "", emailAddress: "" };
+  const initialStep = normalizedStep(requestedStep ?? draft?.currentStep);
+  const [draftId, setDraftId] = useState(draft?.id ?? "");
+  const [draftStatus, setDraftStatus] = useState<GuestCheckoutDraft["status"]>(draft?.status ?? "draft");
+  const [step, setStep] = useState<CheckoutStep>(initialStep === "payment" && !hasGuestInfo(initialGuests, initialGroupContact) ? "guests" : initialStep);
+  const [guestCount] = useState(initialGuestCount);
+  const [selectedDepartureId] = useState(initialDepartureId);
+  const [selectedAddonId] = useState(initialAddonId);
+  const selectedDeparture = pkg.travelDates.find((item) => item.id === selectedDepartureId) ?? pkg.travelDates[0] ?? null;
+  const selectedAddon = pkg.addons.find((item) => item.id === selectedAddonId) ?? null;
   const departureAdditionalAmount = selectedDeparture?.additionalAmount ?? 0;
   const addonAmount = selectedAddon?.price ?? 0;
   const finalAmount = (pkg.price + departureAdditionalAmount + addonAmount) * guestCount;
   const changeDetailsHref = `/packages/${pkg.slug}?departureId=${selectedDeparture?.id ?? ""}&addonId=${selectedAddon?.id ?? "none"}&pax=${guestCount}`;
-  const [step, setStep] = useState(0);
-  const [guests, setGuests] = useState<Guest[]>(() => Array.from({ length: guestCount }, () => newGuest()));
-  const [groupContact, setGroupContact] = useState<GroupContact>({ firstName: "", lastName: "", mobileNumber: "", emailAddress: "" });
-  const [useGuestOne, setUseGuestOne] = useState(false);
-  const [paymentMethodId, setPaymentMethodId] = useState(paymentMethods[0].id);
-  const [paymentProofUrl, setPaymentProofUrl] = useState("");
-  const [paymentReference, setPaymentReference] = useState("");
+  const [guests, setGuests] = useState<Guest[]>(() => initialGuests);
+  const [groupContact, setGroupContact] = useState<GroupContact>(initialGroupContact);
+  const [useGuestOne, setUseGuestOne] = useState(Boolean(draft?.useGuestOne));
+  const [paymentMethodId, setPaymentMethodId] = useState(draft?.paymentMethodId ?? paymentMethods[0].id);
+  const [paymentProofUrl, setPaymentProofUrl] = useState(draft?.paymentProofUrl ?? "");
+  const [paymentReference, setPaymentReference] = useState(draft?.paymentReference ?? "");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submittedReference, setSubmittedReference] = useState("");
   const selectedPaymentMethod = paymentMethods.find((item) => item.id === paymentMethodId) ?? paymentMethods[0];
   const nationalityOptions = useMemo(() => isoCountryCodes.map((code) => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name)), []);
+
+  const draftPayload = useMemo(() => ({
+    packageId: pkg.id,
+    packageSlug: pkg.slug,
+    departureId: selectedDeparture?.id ?? "",
+    addonId: selectedAddon?.id ?? "none",
+    pax: guestCount,
+    pricing: {
+      baseAmount: pkg.price,
+      departureAdditionalAmount,
+      addonAmount,
+      finalAmount,
+    },
+    guests,
+    groupContact,
+    useGuestOne,
+    paymentMethodId: selectedPaymentMethod.id,
+    paymentProofUrl,
+    paymentReference,
+    currentStep: step,
+  }), [addonAmount, departureAdditionalAmount, finalAmount, groupContact, guestCount, guests, paymentProofUrl, paymentReference, pkg.id, pkg.price, pkg.slug, selectedAddon?.id, selectedDeparture?.id, selectedPaymentMethod.id, step, useGuestOne]);
+
+  function goToStep(nextStep: CheckoutStep) {
+    setStep(nextStep);
+    if (draftId) router.replace(`/guest-checkout/${draftId}?step=${nextStep}`);
+  }
+
+  async function continueToPayment() {
+    const errors = validateGuestStep(guests, groupContact);
+    setValidationErrors(errors);
+
+    if (Object.keys(errors).length) return;
+
+    setSaveState("saving");
+    const response = await fetch(draftId ? `/api/booking-drafts/${draftId}` : "/api/booking-drafts", {
+      method: draftId ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draftPayload, currentStep: "payment" }),
+    });
+
+    if (!response.ok) {
+      setSaveState("idle");
+      return;
+    }
+
+    const data = await response.json();
+    const nextDraftId = data.draft.id;
+    setDraftId(nextDraftId);
+    setSaveState("saved");
+    setStep("payment");
+    router.replace(`/guest-checkout/${nextDraftId}?step=payment`);
+  }
 
   function updateGuest(index: number, value: Partial<Guest>) {
     setGuests((current) => current.map((guest, guestIndex) => {
@@ -144,6 +280,7 @@ export function GuestCheckoutClient({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        draftId,
         packageId: pkg.id,
         departureId: selectedDeparture?.id ?? "",
         addonId: selectedAddon?.id ?? "none",
@@ -162,7 +299,22 @@ export function GuestCheckoutClient({
     setSubmitting(false);
     if (!response.ok) return;
     const data = await response.json();
+    setDraftStatus("completed");
     setSubmittedReference(data.booking.reference);
+  }
+
+  if (draftStatus === "completed" && !submittedReference) {
+    return (
+      <main className="container-page max-w-4xl py-10">
+        <Card>
+          <CardContent className="p-8">
+            <StatusBadge status="for_verification" />
+            <h1 className="mt-4 text-3xl font-bold text-viaje-navy">This draft has already been submitted</h1>
+            <p className="mt-3 text-viaje-soft">Create a new checkout from the package page if another booking is needed.</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   if (submittedReference) {
@@ -184,57 +336,48 @@ export function GuestCheckoutClient({
     <main className="container-page py-10">
       <div className="mb-8 flex flex-wrap items-center gap-4">
         <a href={changeDetailsHref}>
-          <Button variant="outline"><ArrowLeft className="h-4 w-4" />Back</Button>
+          <Button variant="outline"><ArrowLeft className="h-4 w-4" /></Button>
         </a>
         <div>
           <p className="font-semibold text-viaje-red">Guest Checkout</p>
           <h1 className="text-3xl font-bold text-viaje-navy">{pkg.title}</h1>
         </div>
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-sm text-viaje-soft">
+          {saveState === "saving" && <span>Saving...</span>}
+          {saveState === "saved" && <span>Saved</span>}
+        </div>
       </div>
 
-      <div className="mb-8 grid gap-2 md:grid-cols-4">
-        {steps.map((label, index) => (
-          <button key={label} type="button" className={`rounded-md border px-3 py-2 text-sm font-semibold ${index <= step ? "border-viaje-navy bg-viaje-navy text-white" : "bg-white"}`} onClick={() => index <= step && setStep(index)}>
-            {index + 1}. {label}
+      <div className="mb-8 grid gap-2 md:grid-cols-2">
+        {steps.map((item, index) => (
+          <button key={item.id} type="button" className={`rounded-md border px-3 py-2 text-sm font-semibold ${item.id === step ? "border-viaje-navy bg-viaje-navy text-white" : "bg-white"}`} onClick={() => goToStep(item.id)}>
+            {index + 1}. {item.label}
           </button>
         ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(300px,3fr)] lg:items-start">
         <Card>
-          <CardHeader><CardTitle>{steps[step]}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{steps.find((item) => item.id === step)?.label}</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            {step === 0 && (
-              <div className="space-y-5">
-                <div className="grid gap-5 md:grid-cols-[220px_1fr]">
-                  {pkg.coverImageUrl && <img src={pkg.coverImageUrl} alt={pkg.title} className="h-44 w-full rounded-lg object-cover" />}
-                  <div>
-                    <p className="text-viaje-soft">{pkg.description}</p>
-                    <div className="mt-5">
-                      <SummaryRows pkg={pkg} selectedDeparture={selectedDeparture} selectedAddon={selectedAddon} pax={guestCount} finalAmount={finalAmount} />
-                    </div>
-                  </div>
-                </div>
-                <a href={changeDetailsHref}>
-                  <Button variant="outline" className="w-fit">Change Booking Details</Button>
-                </a>
-              </div>
-            )}
-
-            {step === 1 && (
+            {step === "guests" && (
               <div className="space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-sm text-viaje-soft">{guestCount} guest form{guestCount === 1 ? "" : "s"} generated from your package selection.</p>
-                  <a href={changeDetailsHref}><Button variant="outline" size="sm">Change Number of Guests</Button></a>
                 </div>
+                {Object.keys(validationErrors).length > 0 && (
+                  <div className="rounded-lg border border-viaje-red/30 bg-viaje-red/5 p-4 text-sm text-viaje-red">
+                    {Object.values(validationErrors)[0]}
+                  </div>
+                )}
                 {guests.map((guest, index) => (
                   <div key={index} className="grid gap-4 rounded-lg border border-viaje-line p-4 md:grid-cols-2">
                     <h3 className="font-serif text-xl font-semibold text-viaje-navy md:col-span-2">Guest {index + 1}</h3>
-                    <label className={fieldClass}><span className={labelClass}>First Name</span><Input value={guest.firstName} onChange={(event) => updateGuest(index, { firstName: upper(event.target.value) })} /></label>
-                    <label className={fieldClass}><span className={labelClass}>Last Name</span><Input value={guest.lastName} onChange={(event) => updateGuest(index, { lastName: upper(event.target.value) })} /></label>
+                    <label className={fieldClass}><span className={labelClass}>First Name</span><Input required value={guest.firstName} onChange={(event) => updateGuest(index, { firstName: upper(event.target.value) })} /></label>
+                    <label className={fieldClass}><span className={labelClass}>Last Name</span><Input required value={guest.lastName} onChange={(event) => updateGuest(index, { lastName: upper(event.target.value) })} /></label>
                     <label className={fieldClass}>
                       <span className={labelClass}>Nationality</span>
-                      <select value={guest.nationality} onChange={(event) => updateGuest(index, { nationality: event.target.value })} className={inputClass}>
+                      <select required value={guest.nationality} onChange={(event) => updateGuest(index, { nationality: event.target.value })} className={inputClass}>
                         {nationalityOptions.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
                       </select>
                     </label>
@@ -246,43 +389,27 @@ export function GuestCheckoutClient({
                   </div>
                 ))}
 
-                <div className="grid gap-4 rounded-lg border border-viaje-line p-4 md:grid-cols-2">
+                <div className="grid gap-4 rounded-lg border border-viaje-line bg-viaje-paperAlt p-4 md:grid-cols-2">
                   <h3 className="font-serif text-xl font-semibold text-viaje-navy md:col-span-2">Group Contact Person</h3>
                   <label className="flex items-center gap-2 text-sm font-medium text-viaje-ink md:col-span-2">
                     <input type="checkbox" checked={useGuestOne} onChange={(event) => toggleGuestOne(event.target.checked)} />
                     Use Guest 1 as contact person
                   </label>
-                  <label className={fieldClass}><span className={labelClass}>First Name</span><Input value={groupContact.firstName} onChange={(event) => setGroupContact((current) => ({ ...current, firstName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
-                  <label className={fieldClass}><span className={labelClass}>Last Name</span><Input value={groupContact.lastName} onChange={(event) => setGroupContact((current) => ({ ...current, lastName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
-                  <label className={fieldClass}><span className={labelClass}>Mobile Number</span><Input value={groupContact.mobileNumber} onChange={(event) => setGroupContact((current) => ({ ...current, mobileNumber: event.target.value }))} /></label>
+                  <label className={fieldClass}><span className={labelClass}>First Name</span><Input required value={groupContact.firstName} onChange={(event) => setGroupContact((current) => ({ ...current, firstName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
+                  <label className={fieldClass}><span className={labelClass}>Last Name</span><Input required value={groupContact.lastName} onChange={(event) => setGroupContact((current) => ({ ...current, lastName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
+                  <label className={fieldClass}><span className={labelClass}>Mobile Number</span><Input required value={groupContact.mobileNumber} onChange={(event) => setGroupContact((current) => ({ ...current, mobileNumber: event.target.value }))} /></label>
                   <label className={fieldClass}>
                     <span className={labelClass}>Email Address</span>
-                    <Input type="email" value={groupContact.emailAddress} onChange={(event) => setGroupContact((current) => ({ ...current, emailAddress: event.target.value }))} />
-                    <span className="text-xs text-viaje-soft">Booking confirmation and updates will be sent to this email address.</span>
+                    <Input required type="email" value={groupContact.emailAddress} onChange={(event) => setGroupContact((current) => ({ ...current, emailAddress: event.target.value }))} />
+                  </label>
+                  <label className={fieldClass}>
+                    <span className="text-xs text-viaje-soft">Booking confirmation and updates will be sent to this email address and contact number.</span>
                   </label>
                 </div>
               </div>
             )}
 
-            {step === 2 && (
-              <div className="space-y-5">
-                <p className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-600" />Review guest information and payment total before proceeding.</p>
-                <div className="grid gap-3">
-                  {guests.map((guest, index) => (
-                    <div key={index} className="rounded-lg border border-viaje-line p-4 text-sm">
-                      <strong className="text-viaje-navy">Guest {index + 1}: {guest.firstName} {guest.lastName}</strong>
-                      <p className="mt-1 text-viaje-soft">{countryName(guest.nationality)} {guest.passportNumber ? `• Passport ${guest.passportNumber}` : ""} {guest.isPwd ? "• PWD" : ""}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="rounded-lg border border-viaje-line p-4 text-sm">
-                  <strong className="text-viaje-navy">Group Contact: {groupContact.firstName} {groupContact.lastName}</strong>
-                  <p className="mt-1 text-viaje-soft">{groupContact.mobileNumber} • {groupContact.emailAddress}</p>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
+            {step === "payment" && (
               <div className="space-y-6">
                 <div className="grid gap-3 md:grid-cols-3">
                   {paymentMethods.map((method) => {
@@ -314,9 +441,20 @@ export function GuestCheckoutClient({
               </div>
             )}
 
-            <div className="flex justify-end">
-              {step < 3 ? (
-                <Button onClick={() => setStep(step + 1)}>Continue</Button>
+            <div className="flex flex-wrap justify-between gap-3">
+              {step === "payment" ? (
+                <Button type="button" variant="outline" onClick={() => goToStep("guests")}>
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </Button>
+              ) : (
+                <a href={changeDetailsHref}>
+                  <Button variant="outline" className="w-fit">Change Booking Details</Button>
+                </a>
+              )}
+              {step === "guests" ? (
+                <Button onClick={continueToPayment} disabled={saveState === "saving"}>
+                  {saveState === "saving" ? "Saving..." : "Continue to Payment"}
+                </Button>
               ) : (
                 <Button onClick={submit} disabled={submitting || !paymentProofUrl}>
                   {submitting ? "Submitting..." : "Submit for Verification"}

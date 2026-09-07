@@ -16,6 +16,7 @@ function numberValue(value: unknown) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
+  const draftId = String(body?.draftId || "");
   const packageId = String(body?.packageId || "");
   const pkg = await getPackageById(packageId);
 
@@ -33,6 +34,18 @@ export async function POST(request: NextRequest) {
   const paymentId = `pay-${Date.now()}`;
   const reference = referenceNumber();
   const { adminDb } = await import("@/lib/firebase-admin");
+  const draftRef = draftId ? adminDb.collection("bookingDrafts").doc(draftId) : null;
+
+  if (draftRef) {
+    const draftSnapshot = await draftRef.get();
+
+    if (!draftSnapshot.exists) return NextResponse.json({ error: "Draft not found" }, { status: 404 });
+    if (draftSnapshot.data()?.status !== "draft") {
+      return NextResponse.json({ error: "Draft already submitted" }, { status: 409 });
+    }
+
+    await draftRef.set({ status: "submitting", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
 
   const booking = {
     id: bookingId,
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
     packageSlug: pkg.slug,
     departureId: selectedDeparture?.id ?? "",
     addonId: selectedAddon?.id ?? "none",
-    status: "processing",
+    status: "PENDING FOR VERIFICATION",
     paymentStatus: "for_verification",
     totalAmount: finalAmount,
     amountPaid: finalAmount,
@@ -90,9 +103,17 @@ export async function POST(request: NextRequest) {
     createdAt: FieldValue.serverTimestamp(),
   };
 
-  await adminDb.collection("bookings").doc(bookingId).set(booking);
-  await adminDb.collection("transactions").doc(transactionId).set(transaction);
-  await adminDb.collection("payments").doc(paymentId).set(payment);
+  try {
+    await adminDb.collection("bookings").doc(bookingId).set(booking);
+    await adminDb.collection("transactions").doc(transactionId).set(transaction);
+    await adminDb.collection("payments").doc(paymentId).set(payment);
+    if (draftRef) await draftRef.delete();
+  } catch (error) {
+    if (draftRef) {
+      await draftRef.set({ status: "draft", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ booking: { ...booking, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, transaction, payment });
 }
