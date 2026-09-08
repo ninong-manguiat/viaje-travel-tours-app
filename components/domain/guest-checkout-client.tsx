@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, UploadCloud } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { isoCountryCodes } from "@/lib/countries";
+import type { PaymentMethod } from "@/lib/payment-methods";
 import type { TravelPackage } from "@/lib/types";
 import { formatDate, formatPeso } from "@/lib/utils";
 
@@ -36,6 +37,16 @@ type GroupContact = {
   emailAddress: string;
 };
 
+type PaymentOption = "full" | "downpayment_50";
+
+type PaymentScheduleItem = {
+  id: string;
+  label: string;
+  amount: number;
+  dueDate: string;
+  status: string;
+};
+
 export type GuestCheckoutDraft = {
   id: string;
   status: "draft" | "completed";
@@ -48,23 +59,14 @@ export type GuestCheckoutDraft = {
   groupContact: GroupContact;
   useGuestOne?: boolean;
   paymentMethodId: string;
+  paymentMethodReferenceNumber?: string;
+  paymentOption?: PaymentOption;
   paymentProofUrl: string;
   paymentReference: string;
   currentStep: CheckoutStep;
 };
 
 type ValidationErrors = Record<string, string>;
-
-const paymentMethods = [
-  { id: "gcash", label: "GCash", color: "#0b5cff" },
-  { id: "bdo", label: "BDO", color: "#0b4ea2" },
-  { id: "bpi", label: "BPI", color: "#ad3630" },
-];
-
-function paymentImage(label: string, color: string) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320"><rect width="320" height="320" rx="28" fill="#ffffff"/><rect x="24" y="24" width="272" height="272" rx="20" fill="${color}" opacity="0.1"/><path d="M72 72h64v64H72zM184 72h64v64h-64zM72 184h64v64H72z" fill="${color}"/><path d="M184 184h24v24h-24zM224 184h24v64h-24zM184 224h24v24h-24z" fill="${color}"/><text x="160" y="166" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="${color}">${label}</text></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
 
 function upper(value: string) {
   return value.toUpperCase();
@@ -103,6 +105,39 @@ function validateGuestStep(guests: Guest[], groupContact: GroupContact) {
   if (!groupContact.emailAddress.trim()) errors.contactEmailAddress = "Group contact email address is required.";
 
   return errors;
+}
+
+function dateOnly(value?: string) {
+  return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
+function paymentAmounts(finalAmount: number, paymentOption: PaymentOption) {
+  if (paymentOption === "full") return { dueNow: finalAmount, remainingBalance: 0 };
+
+  const dueNow = Math.floor(finalAmount / 2);
+  return { dueNow, remainingBalance: finalAmount - dueNow };
+}
+
+function buildPaymentSchedule({
+  finalAmount,
+  paymentOption,
+  departureDate,
+}: {
+  finalAmount: number;
+  paymentOption: PaymentOption;
+  departureDate?: string;
+}): PaymentScheduleItem[] {
+  const currentDate = dateOnly();
+
+  if (paymentOption === "full") {
+    return [{ id: "full-payment", label: "Full Payment", amount: finalAmount, dueDate: currentDate, status: "for_verification" }];
+  }
+
+  const { dueNow, remainingBalance } = paymentAmounts(finalAmount, paymentOption);
+  return [
+    { id: "downpayment", label: "Downpayment", amount: dueNow, dueDate: currentDate, status: "for_verification" },
+    { id: "remaining-balance", label: "Remaining Balance", amount: remainingBalance, dueDate: dateOnly(departureDate), status: "pending" },
+  ];
 }
 
 function countryName(code: string) {
@@ -163,6 +198,7 @@ export function GuestCheckoutClient({
   pax,
   draft,
   requestedStep,
+  paymentMethods,
 }: {
   pkg: TravelPackage;
   departureId: string;
@@ -170,6 +206,7 @@ export function GuestCheckoutClient({
   pax: number;
   draft?: GuestCheckoutDraft;
   requestedStep?: string;
+  paymentMethods: PaymentMethod[];
 }) {
   const router = useRouter();
   const initialGuestCount = Math.max(1, Math.floor(draft?.pax ?? pax));
@@ -193,14 +230,22 @@ export function GuestCheckoutClient({
   const [guests, setGuests] = useState<Guest[]>(() => initialGuests);
   const [groupContact, setGroupContact] = useState<GroupContact>(initialGroupContact);
   const [useGuestOne, setUseGuestOne] = useState(Boolean(draft?.useGuestOne));
-  const [paymentMethodId, setPaymentMethodId] = useState(draft?.paymentMethodId ?? paymentMethods[0].id);
+  const [paymentMethodId, setPaymentMethodId] = useState(draft?.paymentMethodId ?? paymentMethods[0]?.id ?? "");
+  const [paymentOption, setPaymentOption] = useState<PaymentOption>(draft?.paymentOption ?? "full");
   const [paymentProofUrl, setPaymentProofUrl] = useState(draft?.paymentProofUrl ?? "");
   const [paymentReference, setPaymentReference] = useState(draft?.paymentReference ?? "");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submittedReference, setSubmittedReference] = useState("");
-  const selectedPaymentMethod = paymentMethods.find((item) => item.id === paymentMethodId) ?? paymentMethods[0];
+  const selectedPaymentMethod = paymentMethods.find((item) => item.id === paymentMethodId) ?? paymentMethods[0] ?? null;
+  const effectivePaymentOption = paymentOption;
+  const { dueNow, remainingBalance } = paymentAmounts(finalAmount, effectivePaymentOption);
+  const paymentSchedule = buildPaymentSchedule({
+    finalAmount,
+    paymentOption: effectivePaymentOption,
+    departureDate: selectedDeparture?.startDate,
+  });
   const nationalityOptions = useMemo(() => isoCountryCodes.map((code) => ({ code, name: countryName(code) })).sort((a, b) => a.name.localeCompare(b.name)), []);
 
   const draftPayload = useMemo(() => ({
@@ -218,11 +263,14 @@ export function GuestCheckoutClient({
     guests,
     groupContact,
     useGuestOne,
-    paymentMethodId: selectedPaymentMethod.id,
+    paymentMethodId: selectedPaymentMethod?.id ?? "",
+    paymentMethodReferenceNumber: selectedPaymentMethod?.referenceNumber ?? "",
+    paymentOption: effectivePaymentOption,
+    paymentSchedule,
     paymentProofUrl,
     paymentReference,
     currentStep: step,
-  }), [addonAmount, departureAdditionalAmount, finalAmount, groupContact, guestCount, guests, paymentProofUrl, paymentReference, pkg.id, pkg.price, pkg.slug, selectedAddon?.id, selectedDeparture?.id, selectedPaymentMethod.id, step, useGuestOne]);
+  }), [addonAmount, departureAdditionalAmount, effectivePaymentOption, finalAmount, groupContact, guestCount, guests, paymentProofUrl, paymentReference, paymentSchedule, pkg.id, pkg.price, pkg.slug, selectedAddon?.id, selectedDeparture?.id, selectedPaymentMethod?.id, selectedPaymentMethod?.referenceNumber, step, useGuestOne]);
 
   function goToStep(nextStep: CheckoutStep) {
     setStep(nextStep);
@@ -290,8 +338,12 @@ export function GuestCheckoutClient({
         payment: {
           method: selectedPaymentMethod.id,
           referenceNumber: paymentReference,
-          amountSubmitted: finalAmount,
+          amountSubmitted: dueNow,
           receiptUrl: paymentProofUrl,
+          paymentMethodReferenceNumber: selectedPaymentMethod?.referenceNumber ?? "",
+          paymentOption: effectivePaymentOption,
+          paymentSchedule,
+          remainingBalance,
           paymentDate: new Date().toISOString().slice(0, 10),
         },
       }),
@@ -411,30 +463,69 @@ export function GuestCheckoutClient({
 
             {step === "payment" && (
               <div className="space-y-6">
-                <div className="grid gap-3 md:grid-cols-3">
-                  {paymentMethods.map((method) => {
-                    const selected = method.id === paymentMethodId;
-                    return (
-                      <button key={method.id} type="button" onClick={() => setPaymentMethodId(method.id)} className="text-left">
-                        <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
-                          <CardContent className="p-4 font-semibold text-viaje-navy">{method.label}</CardContent>
-                        </Card>
-                      </button>
-                    );
-                  })}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button type="button" onClick={() => setPaymentOption("full")} className="text-left">
+                    <Card className={`rounded-lg transition ${effectivePaymentOption === "full" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                      <CardContent className="p-4">
+                        <p className="font-semibold text-viaje-navy">Pay in Full</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(finalAmount)} due now</p>
+                      </CardContent>
+                    </Card>
+                  </button>
+                  <button type="button" onClick={() => setPaymentOption("downpayment_50")} className="text-left">
+                    <Card className={`rounded-lg transition ${effectivePaymentOption === "downpayment_50" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                      <CardContent className="p-4">
+                        <p className="font-semibold text-viaje-navy">50% Downpayment</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(paymentAmounts(finalAmount, "downpayment_50").dueNow)} due now</p>
+                      </CardContent>
+                    </Card>
+                  </button>
                 </div>
-                <div className="grid gap-5 md:grid-cols-[220px_1fr]">
-                  <img src={paymentImage(selectedPaymentMethod.label, selectedPaymentMethod.color)} alt={`${selectedPaymentMethod.label} payment QR`} className="aspect-square w-full rounded-lg border border-viaje-line object-cover" />
-                  <div className="space-y-4">
-                    <label className={fieldClass}><span className={labelClass}>Reference Number</span><Input value={paymentReference} onChange={(event) => setPaymentReference(upper(event.target.value))} /></label>
-                    <div className="max-w-[220px]">
-                      <span className={labelClass}>Proof of Payment Screenshot</span>
-                      <div className="mt-2">
-                        <PackageMediaField label="Proof of Payment Screenshot" folder="payment-proofs" value={paymentProofUrl} onUploaded={setPaymentProofUrl} uploadUrl="/api/bookings/payment-proof/upload" />
-                      </div>
+                <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
+                  <div className="flex justify-between gap-4"><span>Amount due now</span><strong className="text-viaje-navy">{formatPeso(dueNow)}</strong></div>
+                  <div className="mt-2 flex justify-between gap-4"><span>Remaining balance</span><strong className="text-viaje-navy">{formatPeso(remainingBalance)}</strong></div>
+                  {effectivePaymentOption === "downpayment_50" && (
+                    <p className="mt-3 text-viaje-soft">
+                      The remaining 50% balance will stay open for staff payment tracking.
+                    </p>
+                  )}
+                </div>
+                {!paymentMethods.length ? (
+                  <p className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm text-viaje-soft">No payment methods are available yet.</p>
+                ) : (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {paymentMethods.map((method) => {
+                        const selected = method.id === paymentMethodId;
+                        return (
+                          <button key={method.id} type="button" onClick={() => setPaymentMethodId(method.id)} className="text-left">
+                            <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                              <CardContent className="p-4 font-semibold text-viaje-navy">{method.bank}</CardContent>
+                            </Card>
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
-                </div>
+                    {selectedPaymentMethod && (
+                      <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+                        <img src={selectedPaymentMethod.qrImageUrl} alt={`${selectedPaymentMethod.bank} payment QR`} className="aspect-square w-full rounded-lg border border-viaje-line object-cover" />
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
+                            <p className="font-semibold text-viaje-navy">{selectedPaymentMethod.bank}</p>
+                            <p className="mt-1 text-viaje-soft">Reference Number: <strong className="text-viaje-navy">{selectedPaymentMethod.referenceNumber}</strong></p>
+                          </div>
+                          <label className={fieldClass}><span className={labelClass}>Payment Transaction Reference</span><Input value={paymentReference} onChange={(event) => setPaymentReference(upper(event.target.value))} /></label>
+                          <div className="max-w-[220px]">
+                            <span className={labelClass}>Proof of Payment Screenshot</span>
+                            <div className="mt-2">
+                              <PackageMediaField label="Proof of Payment Screenshot" folder="payment-proofs" value={paymentProofUrl} onUploaded={setPaymentProofUrl} uploadUrl="/api/bookings/payment-proof/upload" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 <p className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm text-viaje-soft">
                   Payment submissions are subject to verification. Our staff will review your payment within 24 hours and send an update to the provided email address.
                 </p>
@@ -456,7 +547,7 @@ export function GuestCheckoutClient({
                   {saveState === "saving" ? "Saving..." : "Continue to Payment"}
                 </Button>
               ) : (
-                <Button onClick={submit} disabled={submitting || !paymentProofUrl}>
+                <Button onClick={submit} disabled={submitting || !paymentProofUrl || !selectedPaymentMethod}>
                   {submitting ? "Submitting..." : "Submit for Verification"}
                 </Button>
               )}

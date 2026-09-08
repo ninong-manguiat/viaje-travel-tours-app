@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { GuestCheckoutClient, type GuestCheckoutDraft } from "@/components/domain/guest-checkout-client";
 import { getPackageById } from "@/lib/package-data";
+import { listPaymentMethods } from "@/lib/payment-methods";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function GuestCheckoutDraftPage({
 
   const pkg = await getPackageById(draftString(data.packageId || data.packageSlug));
   if (!pkg) notFound();
+  const paymentMethods = await listPaymentMethods();
 
   const draft: GuestCheckoutDraft = {
     id: params.draftId,
@@ -47,7 +49,9 @@ export default async function GuestCheckoutDraftPage({
       emailAddress: draftString(data.groupContact?.emailAddress),
     },
     useGuestOne: Boolean(data.useGuestOne),
-    paymentMethodId: draftString(data.paymentMethodId || "gcash"),
+    paymentMethodId: draftString(data.paymentMethodId),
+    paymentMethodReferenceNumber: draftString(data.paymentMethodReferenceNumber),
+    paymentOption: data.paymentOption === "downpayment_50" ? "downpayment_50" : "full",
     paymentProofUrl: draftString(data.paymentProofUrl),
     paymentReference: draftString(data.paymentReference),
     currentStep: data.currentStep === "payment" ? "payment" : "guests",
@@ -61,6 +65,7 @@ export default async function GuestCheckoutDraftPage({
       pax={draft.pax}
       draft={draft}
       requestedStep={searchParams.step}
+      paymentMethods={paymentMethods}
     />
   );
 }

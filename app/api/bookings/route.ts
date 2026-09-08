@@ -14,6 +14,31 @@ function numberValue(value: unknown) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function dateOnly(value?: string) {
+  return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
+function paymentAmounts(finalAmount: number, paymentOption: string) {
+  if (paymentOption !== "downpayment_50") return { amountSubmitted: finalAmount, remainingBalance: 0 };
+
+  const amountSubmitted = Math.floor(finalAmount / 2);
+  return { amountSubmitted, remainingBalance: finalAmount - amountSubmitted };
+}
+
+function paymentSchedule(finalAmount: number, paymentOption: string, departureDate?: string) {
+  const currentDate = dateOnly();
+
+  if (paymentOption !== "downpayment_50") {
+    return [{ id: "full-payment", label: "Full Payment", amount: finalAmount, dueDate: currentDate, status: "for_verification" }];
+  }
+
+  const amounts = paymentAmounts(finalAmount, paymentOption);
+  return [
+    { id: "downpayment", label: "Downpayment", amount: amounts.amountSubmitted, dueDate: currentDate, status: "for_verification" },
+    { id: "remaining-balance", label: "Remaining Balance", amount: amounts.remainingBalance, dueDate: dateOnly(departureDate), status: "pending" },
+  ];
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const draftId = String(body?.draftId || "");
@@ -29,6 +54,10 @@ export async function POST(request: NextRequest) {
   const departureAdditionalAmount = selectedDeparture?.additionalAmount ?? 0;
   const addonAmount = selectedAddon?.price ?? 0;
   const finalAmount = (baseAmount + departureAdditionalAmount + addonAmount) * pax;
+  const requestedPaymentOption = body?.payment?.paymentOption === "downpayment_50" ? "downpayment_50" : "full";
+  const paymentOption = requestedPaymentOption;
+  const { amountSubmitted, remainingBalance } = paymentAmounts(finalAmount, paymentOption);
+  const schedule = paymentSchedule(finalAmount, paymentOption, selectedDeparture?.startDate);
   const bookingId = `booking-${Date.now()}`;
   const transactionId = `txn-${Date.now()}`;
   const paymentId = `pay-${Date.now()}`;
@@ -37,14 +66,18 @@ export async function POST(request: NextRequest) {
   const draftRef = draftId ? adminDb.collection("bookingDrafts").doc(draftId) : null;
 
   if (draftRef) {
-    const draftSnapshot = await draftRef.get();
+    const lockResult = await adminDb.runTransaction(async (transaction) => {
+      const draftSnapshot = await transaction.get(draftRef);
 
-    if (!draftSnapshot.exists) return NextResponse.json({ error: "Draft not found" }, { status: 404 });
-    if (draftSnapshot.data()?.status !== "draft") {
-      return NextResponse.json({ error: "Draft already submitted" }, { status: 409 });
-    }
+      if (!draftSnapshot.exists) return "not_found";
+      if (draftSnapshot.data()?.status !== "draft") return "already_submitted";
 
-    await draftRef.set({ status: "submitting", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      transaction.set(draftRef, { status: "submitting", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return "locked";
+    });
+
+    if (lockResult === "not_found") return NextResponse.json({ error: "Draft not found" }, { status: 404 });
+    if (lockResult === "already_submitted") return NextResponse.json({ error: "Draft already submitted" }, { status: 409 });
   }
 
   const booking = {
@@ -53,16 +86,28 @@ export async function POST(request: NextRequest) {
     clientId: null,
     packageId: pkg.id,
     packageSlug: pkg.slug,
+    packageTitle: pkg.title,
     departureId: selectedDeparture?.id ?? "",
     addonId: selectedAddon?.id ?? "none",
     status: "PENDING FOR VERIFICATION",
     paymentStatus: "for_verification",
     totalAmount: finalAmount,
-    amountPaid: finalAmount,
-    balance: 0,
+    amountPaid: amountSubmitted,
+    balance: remainingBalance,
     source: "website",
     guests: body?.guests ?? [],
     groupContact: body?.groupContact ?? {},
+    paymentOption,
+    paymentType: paymentOption === "downpayment_50" ? "50% Downpayment" : "Full Payment",
+    paymentInfo: {
+      method: body?.payment?.method ?? "",
+      transactionReferenceNumber: body?.payment?.referenceNumber ?? "",
+      paymentMethodReferenceNumber: body?.payment?.paymentMethodReferenceNumber ?? "",
+      receiptUrl: body?.payment?.receiptUrl ?? "",
+      amountSubmitted,
+      paymentDate: body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10),
+    },
+    paymentSchedule: schedule,
     bookingSelections: {
       pax,
       baseAmount,
@@ -80,8 +125,8 @@ export async function POST(request: NextRequest) {
     id: transactionId,
     bookingId,
     clientId: null,
-    type: "full",
-    amount: finalAmount,
+    type: paymentOption === "downpayment_50" ? "deposit" : "full",
+    amount: amountSubmitted,
     dueDate: new Date().toISOString(),
     status: "for_verification",
     createdAt: FieldValue.serverTimestamp(),
@@ -93,9 +138,10 @@ export async function POST(request: NextRequest) {
     bookingId,
     clientId: null,
     method: body?.payment?.method ?? "",
+    paymentMethodReferenceNumber: body?.payment?.paymentMethodReferenceNumber ?? "",
     referenceNumber: body?.payment?.referenceNumber ?? "",
-    amountExpected: finalAmount,
-    amountSubmitted: numberValue(body?.payment?.amountSubmitted) || finalAmount,
+    amountExpected: amountSubmitted,
+    amountSubmitted,
     receiptUrl: body?.payment?.receiptUrl ?? "",
     paymentDate: body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10),
     notes: body?.payment?.notes ?? "",
@@ -103,13 +149,16 @@ export async function POST(request: NextRequest) {
     createdAt: FieldValue.serverTimestamp(),
   };
 
+  let finalRecordsCreated = false;
+
   try {
     await adminDb.collection("bookings").doc(bookingId).set(booking);
     await adminDb.collection("transactions").doc(transactionId).set(transaction);
     await adminDb.collection("payments").doc(paymentId).set(payment);
+    finalRecordsCreated = true;
     if (draftRef) await draftRef.delete();
   } catch (error) {
-    if (draftRef) {
+    if (draftRef && !finalRecordsCreated) {
       await draftRef.set({ status: "draft", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     throw error;
