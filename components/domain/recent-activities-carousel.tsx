@@ -97,11 +97,11 @@ export function RecentActivitiesCarousel({ activities }: { activities: RecentAct
 
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">Gallery</p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {selected.gallery.map((image, index) => (
-                    <div key={`${selected.title}-${index}`} className="h-44 overflow-hidden rounded-[8px] border border-viaje-line">
+                    <div key={`${selected.title}-${index}`} className="flex aspect-square items-center justify-center overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper p-2">
                       {image.src ? (
-                        <img src={image.src} alt={image.alt} className="h-full w-full object-cover" />
+                        <img src={image.src} alt={image.alt} className="max-h-full w-full object-contain" />
                       ) : (
                         <ActivityPlaceholder label={`Photo ${index + 1}`} />
                       )}

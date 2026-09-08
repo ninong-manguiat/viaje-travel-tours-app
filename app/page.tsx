@@ -34,8 +34,7 @@ import {   Anchor,
   PlaneTakeoff,
   ShipWheel,
   BusFront,
-  Contact, 
-  LogIn
+  Contact
 } from "lucide-react";
 import { HeroPackageCarousel } from "@/components/domain/hero-package-carousel";
 import { PackageCard } from "@/components/domain/package-card";
@@ -43,7 +42,6 @@ import { ProofTransactionsCarousel } from "@/components/domain/proof-transaction
 import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-carousel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { packages } from "@/lib/sample-data";
 import { listPackages } from "@/lib/package-data";
 import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type WebsiteContent } from "@/lib/website-content";
@@ -264,11 +262,10 @@ export default async function HomePage() {
             <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
               <Link href="/packages"><Button>Explore Packages</Button></Link>
               <a href={phoneHref}><Button variant="outline"><Phone className="h-4 w-4" />Call</Button></a>
-              <Link href="/login"><Button variant="outline"><LogIn className="h-4 w-4" />Login</Button></Link>
             </div>
           </div>
           <div className="min-w-0">
-            <HeroPackageCarousel items={packages} />
+            <HeroPackageCarousel items={popularPackages} />
           </div>
         </div>
       </section>
