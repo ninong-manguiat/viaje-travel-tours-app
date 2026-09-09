@@ -1,10 +1,7 @@
 import Image from "next/image";
-import { PackageCard } from "@/components/domain/package-card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PackageListingClient } from "@/components/domain/package-listing-client";
 import { listPackages } from "@/lib/package-data";
-import { Phone, Search, SlidersHorizontal } from "lucide-react";
+import { Phone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,38 +32,8 @@ export default async function PackagesPage() {
       </section>
 
       <section className="container-page py-12">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="eyebrow">Available Packages</p>
-            <h2 className="mt-2 text-3xl text-viaje-navy">{packages.length} curated trips</h2>
-          </div>
-          <div className="relative w-full md:max-w-sm">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-viaje-soft" />
-            <Input placeholder="Search destination or package" className="pl-10" />
-          </div>
-        </div>
-
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          {["All", "Domestic", "International", "September", "October", "Budget", "Family", "Group Departure"].map((filter, index) => (
-            <Badge key={filter} className={index === 0 ? "border-viaje-red bg-viaje-red px-3.5 py-2 text-[12.5px] text-white" : "border-viaje-line bg-white px-3.5 py-2 text-[12.5px] text-viaje-soft"}>
-              {filter}
-            </Badge>
-          ))}
-          <Button variant="outline" size="sm" className="gap-2">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Recommended
-          </Button>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {packages.map((item) => <PackageCard key={item.id} item={item} />)}
-          {!packages.length && (
-            <div className="rounded-[10px] border border-dashed border-viaje-line bg-white p-6 text-sm text-viaje-soft md:col-span-2 lg:col-span-3">
-              No packages are available yet.
-            </div>
-          )}
-        </div>
-        </section>
+        <PackageListingClient packages={packages} />
+      </section>
     </main>
   );
 }
