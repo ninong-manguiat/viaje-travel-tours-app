@@ -38,7 +38,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { draftI
 
   if (!pkg) return NextResponse.json({ error: "Package not found" }, { status: 404 });
 
-  const selectedDeparture = pkg.travelDates.find((item) => item.id === body?.departureId) ?? pkg.travelDates[0] ?? null;
+  const requestedDeparture = pkg.travelDates.find((item) => item.id === body?.departureId) ?? null;
+  const selectedDeparture = requestedDeparture ?? pkg.travelDates.find((item) => item.availabilityStatus !== "sold_out") ?? null;
+  if (requestedDeparture?.availabilityStatus === "sold_out" || (pkg.travelDates.length > 0 && !selectedDeparture)) {
+    return NextResponse.json({ error: "Selected departure is sold out" }, { status: 400 });
+  }
   const selectedAddon = pkg.addons.find((item) => item.id === body?.addonId) ?? null;
   const pax = Math.max(1, Math.floor(numberValue(body?.pax, current.pax || 1)));
   const baseAmount = pkg.price;

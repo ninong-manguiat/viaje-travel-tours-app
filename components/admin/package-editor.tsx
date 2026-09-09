@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import type { DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronDown, ExternalLink, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ExternalLink, Eye, EyeOff, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import { PackageGalleryMediaField, PackageMediaField } from "@/components/admin/package-media-field";
 import { IconSelect } from "@/components/admin/website-content-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { airlineOptions, getAirline } from "@/lib/airlines";
-import { newPackage, packageAvailabilityStatuses, packageStatuses, packageTypes } from "@/lib/package-content";
+import { newPackage, packageTypes } from "@/lib/package-content";
 import type { TravelPackage } from "@/lib/types";
 import { cmsIconOptions, type CmsIconName } from "@/lib/website-content";
 
@@ -18,6 +18,7 @@ const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje
 const fieldClass = "grid gap-1.5";
 const inputClass = "h-11 rounded-[10px] border border-viaje-line bg-viaje-paper px-3.5 text-sm text-viaje-ink outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const textareaClass = "min-h-28 rounded-[10px] border border-viaje-line bg-viaje-paper px-3.5 py-3 text-sm text-viaje-ink outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const travelDateAvailabilityOptions: TravelPackage["travelDates"][number]["availabilityStatus"][] = ["available", "sold_out"];
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "package";
@@ -152,6 +153,16 @@ function activitiesFromText(value: string, icon: string): ItineraryItem["activit
     .map((activity) => ({ activity, icon: icon || "MapPin" }));
 }
 
+function normalizeEditorPackage(pkg: TravelPackage): TravelPackage {
+  return {
+    ...pkg,
+    travelDates: pkg.travelDates.map((date) => ({
+      ...date,
+      availabilityStatus: date.availabilityStatus === "sold_out" ? "sold_out" : "available",
+    })),
+  };
+}
+
 function reorderItems<T>(items: T[], fromIndex: number, toIndex: number) {
   const nextItems = [...items];
   const [movedItem] = nextItems.splice(fromIndex, 1);
@@ -261,8 +272,9 @@ export function PackageEditor({ packageId }: { packageId: string }) {
     fetch(`/api/admin/packages/${packageId}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load package")))
       .then((data) => {
-        setPkg(data.package);
-        setSavedSnapshot(JSON.stringify(data.package));
+        const editablePackage = normalizeEditorPackage(data.package);
+        setPkg(editablePackage);
+        setSavedSnapshot(JSON.stringify(editablePackage));
       })
       .catch(() => setStatus("Unable to load package."))
       .finally(() => setLoading(false));
@@ -325,10 +337,11 @@ export function PackageEditor({ packageId }: { packageId: string }) {
     setDraggedItineraryIndex(null);
   }
 
-  async function save({ redirectNew = true } = {}) {
+  async function save({ redirectNew = true, nextStatus }: { redirectNew?: boolean; nextStatus?: TravelPackage["status"] } = {}) {
     setSaving(true);
     setStatus("");
-    const packagePayload = { ...pkg, slug: pkg.slug || slugify(pkg.title) };
+    const packageStatus = nextStatus ?? (pkg.status === "draft" ? "unpublished" : pkg.status);
+    const packagePayload = { ...pkg, slug: pkg.slug || slugify(pkg.title), status: packageStatus };
     const payload = { package: packagePayload };
     const response = await fetch(isNew ? "/api/admin/packages" : `/api/admin/packages/${pkg.id}`, {
       method: isNew ? "POST" : "PUT",
@@ -345,7 +358,7 @@ export function PackageEditor({ packageId }: { packageId: string }) {
     const data = await response.json();
     setPkg(data.package);
     setSavedSnapshot(JSON.stringify(data.package));
-    setStatus("Package saved.");
+    setStatus(packageStatus === "published" ? "Package published." : packageStatus === "unpublished" ? "Package unpublished." : "Package saved.");
     if (isNew && redirectNew) router.replace(`/admin/packages/${data.package.id}/edit`);
     return true;
   }
@@ -388,7 +401,9 @@ export function PackageEditor({ packageId }: { packageId: string }) {
             <ExternalLink className="h-4 w-4" />
             Preview
           </Button>
-          <Button className="w-fit" onClick={() => save()} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Package"}</Button>
+          <Button type="button" variant="outline" className="w-fit" onClick={() => save()} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save"}</Button>
+          <Button type="button" variant="outline" className="w-fit" onClick={() => save({ nextStatus: "unpublished" })} disabled={saving || pkg.status === "unpublished"}><EyeOff className="h-4 w-4" />Unpublish</Button>
+          <Button type="button" className="w-fit" onClick={() => save({ nextStatus: "published" })} disabled={saving || pkg.status === "published"}><Eye className="h-4 w-4" />Publish</Button>
         </div>
       </div>
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
@@ -424,7 +439,6 @@ export function PackageEditor({ packageId }: { packageId: string }) {
             <TextField label="Destination" value={pkg.destination} onChange={(value) => update({ destination: value })} />
             <TextField label="Country" value={pkg.country} onChange={(value) => update({ country: value })} />
             <SelectField label="Type" value={pkg.type} options={packageTypes} onChange={(value) => update({ type: value as TravelPackage["type"] })} />
-            <SelectField label="Status" value={pkg.status} options={packageStatuses} onChange={(value) => update({ status: value as TravelPackage["status"] })} />
             <TextField label="Duration" value={pkg.duration} onChange={(value) => update({ duration: value })} />
             <PriceField value={pkg.price} onChange={(value) => update({ price: value })} />
             <AirlineSelect value={pkg.airline ?? ""} onChange={(value) => update({ airline: value })} />
@@ -460,7 +474,7 @@ export function PackageEditor({ packageId }: { packageId: string }) {
               <TextField label="Date Start" type="date" value={travelDate.startDate} onChange={(value) => update({ travelDates: pkg.travelDates.map((item, itemIndex) => itemIndex === index ? { ...item, startDate: value } : item) })} />
               <TextField label="Date End" type="date" value={travelDate.endDate} onChange={(value) => update({ travelDates: pkg.travelDates.map((item, itemIndex) => itemIndex === index ? { ...item, endDate: value } : item) })} />
               <TextField label="Additional Amount" type="number" value={travelDate.additionalAmount} onChange={(value) => update({ travelDates: pkg.travelDates.map((item, itemIndex) => itemIndex === index ? { ...item, additionalAmount: Number(value) } : item) })} />
-              <SelectField label="Availability" value={travelDate.availabilityStatus} options={packageAvailabilityStatuses} onChange={(value) => update({ travelDates: pkg.travelDates.map((item, itemIndex) => itemIndex === index ? { ...item, availabilityStatus: value as TravelPackage["travelDates"][number]["availabilityStatus"] } : item) })} />
+              <SelectField label="Availability" value={travelDate.availabilityStatus} options={travelDateAvailabilityOptions} onChange={(value) => update({ travelDates: pkg.travelDates.map((item, itemIndex) => itemIndex === index ? { ...item, availabilityStatus: value as TravelPackage["travelDates"][number]["availabilityStatus"] } : item) })} />
               <Button type="button" variant="ghost" className="w-fit text-viaje-red" onClick={() => update({ travelDates: pkg.travelDates.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}

@@ -42,7 +42,7 @@ import { ProofTransactionsCarousel } from "@/components/domain/proof-transaction
 import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-carousel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { listPackages } from "@/lib/package-data";
+import { listPublishedPackages } from "@/lib/package-data";
 import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 import { defaultWebsiteContent, mergeWebsiteContent, type CmsIconName, type WebsiteContent } from "@/lib/website-content";
 
@@ -220,9 +220,8 @@ function telHref(value: string) {
 
 export default async function HomePage() {
   const websiteContent = await getWebsiteContent();
-  const popularPackages = (await listPackages()).filter((item) =>
-    item.status === "published" &&
-    (!item.travelDates.length || item.travelDates.some((date) => date.availabilityStatus !== "sold_out"))
+  const popularPackages = (await listPublishedPackages()).filter((item) =>
+    !item.travelDates.length || item.travelDates.some((date) => date.availabilityStatus !== "sold_out")
   );
   const cmsServices = websiteContent.services.services.map((service) => ({
     title: service.name,

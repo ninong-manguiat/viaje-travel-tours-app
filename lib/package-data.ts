@@ -11,6 +11,11 @@ export async function listPackages(): Promise<TravelPackage[]> {
   return snapshot.docs.map((doc) => normalizePackage({ id: doc.id, ...doc.data() }));
 }
 
+export async function listPublishedPackages(): Promise<TravelPackage[]> {
+  const packages = await listPackages();
+  return packages.filter((pkg) => pkg.status === "published");
+}
+
 export async function getPackageById(packageId: string): Promise<TravelPackage | null> {
   const collection = await collectionRef();
   const snapshot = await collection.doc(packageId).get();
@@ -21,4 +26,9 @@ export async function getPackageById(packageId: string): Promise<TravelPackage |
 
   const doc = slugSnapshot.docs[0];
   return normalizePackage({ id: doc.id, ...doc.data() });
+}
+
+export async function getPublishedPackageById(packageId: string): Promise<TravelPackage | null> {
+  const pkg = await getPackageById(packageId);
+  return pkg?.status === "published" ? pkg : null;
 }

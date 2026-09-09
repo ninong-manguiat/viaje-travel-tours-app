@@ -1,12 +1,12 @@
 import Image from "next/image";
 import { PackageListingClient } from "@/components/domain/package-listing-client";
-import { listPackages } from "@/lib/package-data";
+import { listPublishedPackages } from "@/lib/package-data";
 import { Phone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function PackagesPage() {
-  const packages = await listPackages();
+  const packages = await listPublishedPackages();
 
   return (
     <main>

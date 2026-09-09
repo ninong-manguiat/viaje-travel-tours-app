@@ -3,7 +3,7 @@ export type BookingStatus = "inquiry" | "quotation_sent" | "reserved" | "awaitin
 export type PaymentStatus = "unpaid" | "submitted" | "for_verification" | "partially_paid" | "paid" | "rejected" | "refunded";
 export type DocumentStatus = "required" | "submitted" | "under_review" | "approved" | "needs_replacement";
 export type QuotationStatus = "draft" | "sent" | "viewed" | "accepted" | "expired" | "converted";
-export type PackageStatus = "published" | "draft" | "archived";
+export type PackageStatus = "published" | "draft" | "unpublished";
 
 export interface UserProfile {
   id: string;

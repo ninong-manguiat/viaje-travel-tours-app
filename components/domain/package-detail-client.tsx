@@ -118,7 +118,13 @@ function PaxCounter({ value, onChange }: { value: number; onChange: (value: numb
 
 export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
   const searchParams = useSearchParams();
-  const [selectedDepartureId, setSelectedDepartureId] = useState(searchParams.get("departureId") || pkg.travelDates[0]?.id || "");
+  const bookableDepartures = pkg.travelDates.filter((date) => date.availabilityStatus !== "sold_out");
+  const [selectedDepartureId, setSelectedDepartureId] = useState(() => {
+    const requestedDepartureId = searchParams.get("departureId") || "";
+    return bookableDepartures.some((date) => date.id === requestedDepartureId)
+      ? requestedDepartureId
+      : bookableDepartures[0]?.id || "";
+  });
   const [selectedAddonId, setSelectedAddonId] = useState(searchParams.get("addonId") || "none");
   const [pax, setPax] = useState(Math.max(1, Number(searchParams.get("pax")) || 1));
   const airline = getAirline(pkg.airline);
@@ -129,6 +135,7 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
   const amountPerPax = pkg.price + additionalAmount + addonAmount;
   const finalAmount = amountPerPax * pax;
   const gallery = [pkg.coverImageUrl, ...pkg.galleryUrls].filter(Boolean);
+  const canBook = Boolean(selectedDeparture) && selectedDeparture?.availabilityStatus !== "sold_out";
 
   return (
     <main>
@@ -195,9 +202,10 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
             <div className="grid gap-3">
               {pkg.travelDates.map((dep) => {
                 const selected = dep.id === selectedDeparture?.id;
+                const soldOut = dep.availabilityStatus === "sold_out";
                 return (
-                  <button key={dep.id} type="button" onClick={() => setSelectedDepartureId(dep.id)} className="text-left">
-                    <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                  <button key={dep.id} type="button" onClick={() => setSelectedDepartureId(dep.id)} disabled={soldOut} className="text-left disabled:cursor-not-allowed">
+                    <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""} ${soldOut ? "opacity-60" : ""}`}>
                       <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                         <div>
                           <p className="font-semibold">{formatDate(dep.startDate)} - {formatDate(dep.endDate)}</p>
@@ -344,9 +352,13 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
                 <div className="flex justify-between text-lg"><span className="font-semibold">Final Amount</span><strong>{formatPeso(finalAmount)}</strong></div>
                 <br/>
               </div>
-              <Link href={`/book/${pkg.id}?departureId=${selectedDeparture?.id ?? ""}&addonId=${selectedAddon?.id ?? "none"}&pax=${pax}`}>
-                <Button className="w-full">Book This Package</Button>
-              </Link>
+              {canBook ? (
+                <Link href={`/book/${pkg.id}?departureId=${selectedDeparture?.id ?? ""}&addonId=${selectedAddon?.id ?? "none"}&pax=${pax}`}>
+                  <Button className="w-full">Book This Package</Button>
+                </Link>
+              ) : (
+                <Button className="w-full" disabled>Book This Package</Button>
+              )}
             </CardContent>
           </Card>
         </aside>

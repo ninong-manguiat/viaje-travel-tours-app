@@ -3,7 +3,7 @@ import type { PackageStatus, TravelPackage } from "@/lib/types";
 
 export type PackageAvailabilityStatus = "available" | "limited" | "sold_out";
 
-export const packageStatuses: PackageStatus[] = ["draft", "published", "archived"];
+export const packageStatuses: PackageStatus[] = ["draft", "published", "unpublished"];
 export const packageTypes: TravelPackage["type"][] = ["domestic", "international"];
 export const packageAvailabilityStatuses: PackageAvailabilityStatus[] = ["available", "limited", "sold_out"];
 
@@ -48,6 +48,10 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
   const legacyPricing = input && "pricing" in input ? input.pricing as { adult?: number } | undefined : undefined;
   const title = input?.title ?? fallback.title;
   const id = input?.id ?? `pkg-${Date.now()}`;
+  const rawStatus = String(input?.status ?? "");
+  const status = rawStatus === "archived"
+    ? "unpublished"
+    : packageStatuses.includes(rawStatus as PackageStatus) ? rawStatus as PackageStatus : "draft";
 
   return {
     id,
@@ -61,7 +65,7 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
     hotel: input?.hotel || fallback.hotel,
     description: input?.description ?? fallback.description,
     coverImageUrl: input?.coverImageUrl ?? fallback.coverImageUrl,
-    status: packageStatuses.includes(input?.status as PackageStatus) ? input?.status as PackageStatus : "draft",
+    status,
     price: numberValue(input?.price ?? legacyPricing?.adult),
     galleryUrls: Array.isArray(input?.galleryUrls) ? input.galleryUrls.filter(Boolean) : [],
     travelDates: Array.isArray(input?.travelDates)
