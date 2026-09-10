@@ -12,7 +12,6 @@ const groups = [
       { href: "/admin/website-content", label: "Website Content", icon: PanelsTopLeft },
       { href: "/admin/packages", label: "Packages", icon: Package },
       { href: "/admin/payment-management", label: "Payment Management", icon: WalletCards },
-      { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
       { href: "/admin/documents", label: "Documents", icon: FileText },
     ],
   },
@@ -21,6 +20,7 @@ const groups = [
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/payments/verification", label: "Payments", icon: CreditCard },
+      { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
     ],
   },
 ] satisfies Array<{ label: string; items: Array<{ href: Route; label: string; icon: typeof LayoutDashboard }> }>;
