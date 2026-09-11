@@ -107,3 +107,30 @@ export async function PATCH(request: NextRequest, { params }: { params: { binId:
 
   return NextResponse.json({ error: "Unsupported document bin update." }, { status: 400 });
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { binId: string } }) {
+  if (!isAdmin(request)) return unauthorized();
+
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const ref = adminDb.collection("documentBins").doc(params.binId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) return NextResponse.json({ error: "Document bin not found" }, { status: 404 });
+
+  const bin = serializeDocumentBin(snapshot.id, snapshot.data() ?? {});
+  if (bin.status !== "CANCELLED") {
+    return NextResponse.json({ error: "Only cancelled document bins can be deleted." }, { status: 400 });
+  }
+
+  try {
+    await Promise.all(bin.requirements.flatMap((requirement) =>
+      requirement.uploads
+        .filter((upload) => upload.storageKey)
+        .map((upload) => deleteFile("travelDocuments", upload.storageKey))
+    ));
+  } catch {
+    return NextResponse.json({ error: "Unable to delete one or more uploaded files. Document bin was not deleted." }, { status: 500 });
+  }
+
+  await ref.delete();
+  return NextResponse.json({ ok: true });
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Eye, FileText, Plus, X } from "lucide-react";
+import { Copy, ExternalLink, Eye, FileText, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,20 @@ function binLink(bin: DocumentBin) {
 function progressLabel(bin: DocumentBin) {
   const progress = documentBinProgress(bin.requirements);
   return `${progress.submitted} of ${progress.total} submitted • ${progress.approved} approved`;
+}
+
+function progressPercent(bin: DocumentBin) {
+  const progress = documentBinProgress(bin.requirements);
+  if (!progress.total) return 0;
+  return Math.round((progress.submitted / progress.total) * 100);
+}
+
+function ProgressIndicator({ value }: { value: number }) {
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-viaje-paperAlt">
+      <div className="h-full rounded-full bg-viaje-red transition-all" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+  );
 }
 
 function openUploadedFiles(requirement: DocumentRequirement) {
@@ -250,6 +264,12 @@ export function DocumentBinManagement() {
     setStatus("Document bin link copied.");
   }
 
+  function openLink(bin: DocumentBin) {
+    const url = binLink(bin);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   async function addRequirement() {
     if (!selected || !newRequirements[0]) return;
     const item = newRequirements[0];
@@ -261,6 +281,22 @@ export function DocumentBinManagement() {
     if (!selected) return;
     if (!window.confirm(`Cancel ${selected.referenceNumber}? Uploaded files will be removed and the public link will stop working.`)) return;
     await updateSelected("cancelBin");
+  }
+
+  async function deleteBin(bin: DocumentBin) {
+    if (bin.status !== "CANCELLED") return;
+    if (!window.confirm(`Permanently delete ${bin.referenceNumber}? This action cannot be undone.`)) return;
+
+    const response = await fetch(`/api/admin/document-bins/${bin.id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setStatus(data?.error ?? "Unable to delete document bin.");
+      return;
+    }
+
+    setBins((current) => current.filter((item) => item.id !== bin.id));
+    if (selected?.id === bin.id) setSelected(null);
+    setStatus("Document bin deleted.");
   }
 
   return (
@@ -283,24 +319,33 @@ export function DocumentBinManagement() {
         <CardContent>
           <Table>
             <THead>
-              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Created At</TH><TH>Requirements</TH><TH>Progress</TH><TH>Status</TH><TH>Actions</TH></TR>
+              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Created At</TH><TH>Progress</TH><TH>Status</TH><TH>Actions</TH></TR>
             </THead>
             <TBody>
-              {loading && <TR><TD colSpan={7}>Loading document bins...</TD></TR>}
-              {!loading && !visibleBins.length && <TR><TD colSpan={7}>No document bins yet.</TD></TR>}
+              {loading && <TR><TD colSpan={6}>Loading document bins...</TD></TR>}
+              {!loading && !visibleBins.length && <TR><TD colSpan={6}>No document bins yet.</TD></TR>}
               {!loading && visibleBins.map((bin) => (
                 <TR key={bin.id}>
                   <TD>{bin.referenceNumber}</TD>
                   <TD>{bin.clientName}</TD>
                   <TD>{bin.createdAt ? formatDate(bin.createdAt) : "N/A"}</TD>
-                  <TD>{bin.requirements.length}</TD>
-                  <TD>{progressLabel(bin)}</TD>
+                  <TD>
+                    <div className="grid min-w-[150px] gap-2">
+                      <ProgressIndicator value={progressPercent(bin)} />
+                      <span className="text-xs text-viaje-soft">{progressLabel(bin)}</span>
+                    </div>
+                  </TD>
                   <TD><StatusBadge status={bin.status} /></TD>
                   <TD>
                     <div className="flex flex-wrap justify-end gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => setSelected(bin)}><Eye className="h-3.5 w-3.5" />View</Button>
-                      {bin.status !== "CANCELLED" && (
-                        <Button type="button" size="sm" variant="outline" onClick={() => copyLink(bin)}><Copy className="h-3.5 w-3.5" />Copy Link</Button>
+                      {bin.status === "CANCELLED" ? (
+                        <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={() => deleteBin(bin)}><Trash2 className="h-3.5 w-3.5" />Delete</Button>
+                      ) : (
+                        <>
+                          <Button type="button" size="sm" variant="outline" onClick={() => copyLink(bin)}><Copy className="h-3.5 w-3.5" />Copy Link</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => openLink(bin)}><ExternalLink className="h-3.5 w-3.5" />Open Link</Button>
+                        </>
                       )}
                     </div>
                   </TD>
@@ -357,9 +402,16 @@ export function DocumentBinManagement() {
                   <CardTitle>Summary</CardTitle>
                   <div className="flex flex-wrap gap-2">
                     {selected.status !== "CANCELLED" && (
-                      <Button type="button" size="sm" variant="outline" onClick={() => copyLink(selected)}><Copy className="h-3.5 w-3.5" />Copy Bin Link</Button>
+                      <>
+                        <Button type="button" size="sm" variant="outline" onClick={() => copyLink(selected)}><Copy className="h-3.5 w-3.5" />Copy Bin Link</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => openLink(selected)}><ExternalLink className="h-3.5 w-3.5" />Open Bin Link</Button>
+                      </>
                     )}
-                    <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={() => cancelSelected()} disabled={selected.status === "CANCELLED"}>Cancel Bin</Button>
+                    {selected.status === "CANCELLED" ? (
+                      <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={() => deleteBin(selected)}><Trash2 className="h-3.5 w-3.5" />Delete</Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={() => cancelSelected()}>Cancel Bin</Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="grid min-w-0 gap-3 text-sm md:grid-cols-3">
