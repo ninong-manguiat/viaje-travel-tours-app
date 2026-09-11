@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { randomBytes } from "node:crypto";
 import { isBookingDocumentType } from "@/lib/booking-documents";
+import { serializeDocumentBin } from "@/lib/document-bins";
+import { deleteFile } from "@/lib/storage";
 
 const paymentStatuses = ["pending", "for_verification", "verified", "rejected", "paid", "partially_paid"];
 const bookingStatuses = ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"];
@@ -36,6 +38,45 @@ function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ i
 
 function documentToken() {
   return randomBytes(16).toString("base64url");
+}
+
+function timestampValue(value: unknown) {
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+
+  if (value && typeof value === "object" && "seconds" in value && typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000).toISOString();
+  }
+
+  return typeof value === "string" ? value : "";
+}
+
+function serializeBooking(id: string, data: FirebaseFirestore.DocumentData) {
+  return {
+    ...data,
+    id,
+    createdAt: timestampValue(data.createdAt),
+    updatedAt: timestampValue(data.updatedAt),
+  };
+}
+
+async function deleteDocumentBinFiles(bin: ReturnType<typeof serializeDocumentBin>) {
+  await Promise.all(bin.requirements.flatMap((requirement) =>
+    requirement.uploads
+      .filter((upload) => upload.storageKey)
+      .map((upload) => deleteFile("travelDocuments", upload.storageKey))
+  ));
+}
+
+export async function GET(request: NextRequest, { params }: { params: { bookingId: string } }) {
+  if (!isAdmin(request)) return unauthorized();
+
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const snapshot = await adminDb.collection("bookings").doc(params.bookingId).get();
+  if (!snapshot.exists) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  return NextResponse.json({ booking: serializeBooking(snapshot.id, snapshot.data() ?? {}) });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { bookingId: string } }) {
@@ -127,6 +168,36 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const token = booking.documentToken || documentToken();
     await ref.set({ documentToken: token, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return NextResponse.json({ documentToken: token, documentRequirements: booking.documentRequirements ?? [] });
+  }
+
+  if (action === "unlinkDocumentBin") {
+    const documentBinId = String(booking.documentBinId || "");
+    if (!documentBinId) return NextResponse.json({ error: "This booking does not have a linked document bin." }, { status: 400 });
+
+    const binRef = adminDb.collection("documentBins").doc(documentBinId);
+    const binSnapshot = await binRef.get();
+
+    if (binSnapshot.exists) {
+      const bin = serializeDocumentBin(binSnapshot.id, binSnapshot.data() ?? {});
+      if (bin.bookingId && bin.bookingId !== params.bookingId) {
+        return NextResponse.json({ error: "Linked document bin belongs to a different booking." }, { status: 409 });
+      }
+
+      try {
+        await deleteDocumentBinFiles(bin);
+      } catch {
+        return NextResponse.json({ error: "Unable to delete one or more uploaded files. Document bin was not unlinked." }, { status: 500 });
+      }
+
+      await binRef.delete();
+    }
+
+    await ref.set({
+      documentBinId: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return NextResponse.json({ documentBinId: "" });
   }
 
   return NextResponse.json({ error: "Unsupported booking update." }, { status: 400 });

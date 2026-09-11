@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Link as LinkIcon, Mail, Plus, X } from "lucide-react";
+import { Copy, ExternalLink, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { bookingDocumentTypes } from "@/lib/booking-documents";
+import { DocumentBinProgressIndicator } from "@/components/admin/document-bin-management";
+import { documentBinProgress, documentName, type DocumentBin } from "@/lib/document-bins";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 type PaymentScheduleItem = {
@@ -32,6 +33,7 @@ type AdminBooking = {
   amountPaid?: number;
   balance?: number;
   createdAt?: string;
+  documentBinId?: string;
   documentToken?: string;
   documentRequirements?: Array<{
     id: string;
@@ -109,11 +111,28 @@ function paidFromSchedule(schedule: PaymentScheduleItem[]) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(item.status.toLowerCase()) ? sum + Number(item.amount || 0) : sum, 0);
 }
 
+function documentBinLink(bin: DocumentBin) {
+  if (typeof window === "undefined" || !bin.publicToken) return "";
+  return `${window.location.origin}/documents/${bin.publicToken}`;
+}
+
+function documentProgressLabel(bin: DocumentBin) {
+  const progress = documentBinProgress(bin.requirements);
+  return `${progress.submitted} of ${progress.total} submitted • ${progress.approved} approved`;
+}
+
+function documentProgressPercent(bin: DocumentBin) {
+  const progress = documentBinProgress(bin.requirements);
+  if (!progress.total) return 0;
+  return Math.round((progress.submitted / progress.total) * 100);
+}
+
 export function BookingManagement() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [selected, setSelected] = useState<AdminBooking | null>(null);
+  const [documentBin, setDocumentBin] = useState<DocumentBin | null>(null);
+  const [documentBinLoading, setDocumentBinLoading] = useState(false);
   const [newPayment, setNewPayment] = useState({ label: "", amount: "", dueDate: "" });
-  const [selectedDocumentType, setSelectedDocumentType] = useState("");
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -125,10 +144,61 @@ export function BookingManagement() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (loading || selected) return;
+    const params = new URLSearchParams(window.location.search);
+    const bookingId = params.get("bookingId") || "";
+    if (!bookingId) return;
+
+    const existing = bookings.find((booking) => booking.id === bookingId);
+    if (existing) {
+      setSelected(existing);
+      return;
+    }
+
+    fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load booking")))
+      .then((data) => setSelected(data.booking))
+      .catch(() => setStatus("Unable to load linked booking."));
+  }, [bookings, loading, selected]);
+
+  useEffect(() => {
+    if (!selected?.documentBinId) {
+      setDocumentBin(null);
+      setDocumentBinLoading(false);
+      return;
+    }
+
+    setDocumentBinLoading(true);
+    fetch(`/api/admin/document-bins/${encodeURIComponent(selected.documentBinId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load document bin")))
+      .then((data) => setDocumentBin(data.documentBin))
+      .catch(() => {
+        setDocumentBin(null);
+        setStatus("Unable to load linked document bin.");
+      })
+      .finally(() => setDocumentBinLoading(false));
+  }, [selected?.documentBinId]);
+
   const selectedSchedule = useMemo(() => selected ? scheduleFor(selected) : [], [selected]);
   const totalPaid = paidFromSchedule(selectedSchedule);
   const totalAmount = Number(selected?.totalAmount ?? selected?.bookingSelections?.finalAmount ?? 0);
   const remainingBalance = Math.max(0, totalAmount - totalPaid);
+
+  function openBooking(booking: AdminBooking) {
+    setSelected(booking);
+    const url = new URL(window.location.href);
+    url.searchParams.set("bookingId", booking.id);
+    window.history.pushState(null, "", url.toString());
+  }
+
+  function closeBooking() {
+    setSelected(null);
+    setDocumentBin(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("bookingId");
+    window.history.pushState(null, "", url.toString());
+  }
 
   async function updateScheduleStatus(scheduleItemId: string, nextStatus: string) {
     if (!selected) return;
@@ -195,53 +265,50 @@ export function BookingManagement() {
     setStatus("Payment schedule added.");
   }
 
-  async function addDocumentRequirement() {
-    if (!selected || !selectedDocumentType) return;
+  function linkDocumentBin() {
+    if (!selected) return;
+    window.location.href = `/admin/documents?createDocumentBin=1&bookingId=${encodeURIComponent(selected.id)}`;
+  }
+
+  async function unlinkDocumentBin() {
+    if (!selected || !documentBin) return;
+    if (!window.confirm("Unlink this Document Bin from the booking? The linked Document Bin and its stored documents will be deleted.")) return;
 
     const response = await fetch(`/api/admin/bookings/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "addDocumentRequirement", type: selectedDocumentType }),
+      body: JSON.stringify({ action: "unlinkDocumentBin" }),
     });
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data?.error ?? "Unable to add document requirement.");
+      setStatus(data?.error ?? "Unable to unlink document bin.");
       return;
     }
 
-    const data = await response.json();
-    const updated = { ...selected, documentRequirements: data.documentRequirements, documentToken: data.documentToken };
+    const updated = { ...selected, documentBinId: "" };
     setSelected(updated);
     setBookings((current) => current.map((booking) => booking.id === updated.id ? updated : booking));
-    setSelectedDocumentType("");
-    setStatus("Document requirement added.");
+    setDocumentBin(null);
+    setStatus("Document bin unlinked and deleted.");
   }
 
-  async function ensureDocumentLink() {
-    if (!selected) return;
-
-    const response = await fetch(`/api/admin/bookings/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "ensureDocumentToken" }),
-    });
-
-    if (!response.ok) {
-      setStatus("Unable to prepare document upload link.");
-      return;
-    }
-
-    const data = await response.json();
-    const updated = { ...selected, documentToken: data.documentToken, documentRequirements: data.documentRequirements };
-    setSelected(updated);
-    setBookings((current) => current.map((booking) => booking.id === updated.id ? updated : booking));
-    setStatus("Document upload link is ready.");
+  async function copyDocumentBinLink() {
+    if (!documentBin) return;
+    await navigator.clipboard.writeText(documentBinLink(documentBin));
+    setStatus("Document bin link copied.");
   }
 
-  function documentUploadLink(booking: AdminBooking) {
-    if (!booking.documentToken || typeof window === "undefined") return "";
-    return `${window.location.origin}/documents/${booking.documentToken}`;
+  function openDocumentBinLink() {
+    if (!documentBin) return;
+    const url = documentBinLink(documentBin);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function openDocumentBinDetails() {
+    if (!documentBin) return;
+    window.location.href = `/admin/documents?documentBinId=${encodeURIComponent(documentBin.id)}`;
   }
 
   return (
@@ -262,7 +329,7 @@ export function BookingManagement() {
               {loading && <TR><TD colSpan={7}>Loading bookings...</TD></TR>}
               {!loading && !bookings.length && <TR><TD colSpan={7}>No bookings yet.</TD></TR>}
               {!loading && bookings.map((booking) => (
-                <TR key={booking.id} onClick={() => setSelected(booking)} className="cursor-pointer">
+                <TR key={booking.id} onClick={() => openBooking(booking)} className="cursor-pointer">
                   <TD>{contactName(booking)}</TD>
                   <TD>{booking.reference ?? booking.id}</TD>
                   <TD>{dateLabel(booking.createdAt)}</TD>
@@ -285,7 +352,7 @@ export function BookingManagement() {
                 <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">{selected.reference ?? selected.id}</p>
                 <h2 className="mt-1 font-serif text-2xl font-semibold text-viaje-navy">Booking Details</h2>
               </div>
-              <Button type="button" variant="outline" size="icon" onClick={() => setSelected(null)} aria-label="Close booking details">
+              <Button type="button" variant="outline" size="icon" onClick={closeBooking} aria-label="Close booking details">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -396,40 +463,52 @@ export function BookingManagement() {
               <Card className="lg:col-span-2">
                 <CardHeader><CardTitle>Documents</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex flex-wrap gap-3">
-                    <select value={selectedDocumentType} onChange={(event) => setSelectedDocumentType(event.target.value)} className="h-10 rounded-[8px] border border-viaje-line bg-white px-3 text-sm text-viaje-ink">
-                      <option value="">Select document</option>
-                      {bookingDocumentTypes
-                        .filter((type) => !(selected.documentRequirements ?? []).some((requirement) => requirement.type === type))
-                        .map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                    <Button type="button" onClick={addDocumentRequirement} disabled={!selectedDocumentType}><Plus className="h-4 w-4" />Add Requirement</Button>
-                    <Button type="button" variant="outline" onClick={ensureDocumentLink}>Generate Document Upload Link</Button>
-                  </div>
-                  {selected.documentToken && (
-                    <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm text-viaje-soft">
-                      Document upload link: <strong className="text-viaje-navy">{documentUploadLink(selected)}</strong>
-                    </p>
+                  {!selected.documentBinId && (
+                    <div className="rounded-[8px] border border-dashed border-viaje-line bg-viaje-paper p-5 text-sm">
+                      <p className="mb-4 text-viaje-soft">No Document Bin is linked to this booking yet.</p>
+                      <Button type="button" onClick={linkDocumentBin}><FileText className="h-4 w-4" />Link Document Bin</Button>
+                    </div>
                   )}
-                  <Table>
-                    <THead><TR><TH>Document</TH><TH>Status</TH><TH>Uploaded File</TH></TR></THead>
-                    <TBody>
-                      {!(selected.documentRequirements ?? []).length && <TR><TD colSpan={3}>No document requirements yet.</TD></TR>}
-                      {(selected.documentRequirements ?? []).map((requirement) => (
-                        <TR key={requirement.id}>
-                          <TD>{requirement.type}</TD>
-                          <TD><StatusBadge status={requirement.status} /></TD>
-                          <TD>
-                            {requirement.uploadedFileUrl ? (
-                              <a href={requirement.uploadedFileUrl} target="_blank" className="font-semibold text-viaje-red">View file</a>
-                            ) : (
-                              <span className="text-viaje-soft">Pending upload</span>
-                            )}
-                          </TD>
-                        </TR>
-                      ))}
-                    </TBody>
-                  </Table>
+
+                  {selected.documentBinId && documentBinLoading && (
+                    <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-4 text-sm text-viaje-soft">Loading linked document bin...</p>
+                  )}
+
+                  {selected.documentBinId && !documentBinLoading && documentBin && (
+                    <div className="space-y-4 rounded-[8px] border border-viaje-line bg-viaje-paper p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">{documentBin.referenceNumber}</p>
+                          <h3 className="mt-1 font-serif text-xl font-semibold text-viaje-navy">{documentBin.purpose || "Document Bin"}</h3>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="outline" onClick={copyDocumentBinLink}><Copy className="h-3.5 w-3.5" />Copy Link</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={openDocumentBinLink}><ExternalLink className="h-3.5 w-3.5" />Open Link</Button>
+                          <Button type="button" size="sm" onClick={openDocumentBinDetails}><FileText className="h-3.5 w-3.5" />Open Full Details</Button>
+                          <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={unlinkDocumentBin}><Trash2 className="h-3.5 w-3.5" />Unlink Document Bin</Button>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 text-sm md:grid-cols-3">
+                        <p><span className="text-viaje-soft">Status</span><br /><StatusBadge status={documentBin.status} /></p>
+                        <p><span className="text-viaje-soft">Progress</span><br /><strong>{documentProgressLabel(documentBin)}</strong></p>
+                        <p><span className="text-viaje-soft">Public Link</span><br /><strong>{documentBin.publicToken ? "Active" : "Not available"}</strong></p>
+                      </div>
+                      <DocumentBinProgressIndicator value={documentProgressPercent(documentBin)} />
+                      <Table>
+                        <THead><TR><TH>Document</TH><TH>Status</TH><TH>Uploaded Files</TH></TR></THead>
+                        <TBody>
+                          {!documentBin.requirements.length && <TR><TD colSpan={3}>No document requirements yet.</TD></TR>}
+                          {documentBin.requirements.map((requirement) => (
+                            <TR key={requirement.id}>
+                              <TD>{documentName(requirement)}</TD>
+                              <TD><StatusBadge status={requirement.status} /></TD>
+                              <TD>{requirement.uploads.length ? `${requirement.uploads.length} uploaded` : <span className="text-viaje-soft">Pending upload</span>}</TD>
+                            </TR>
+                          ))}
+                        </TBody>
+                      </Table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -437,7 +516,6 @@ export function BookingManagement() {
                 <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
                 <CardContent className="flex flex-wrap gap-3">
                   <Button type="button" variant="outline"><Mail className="h-4 w-4" />Send Confirmation Email & Itinerary</Button>
-                  <Button type="button" variant="outline" onClick={ensureDocumentLink}><FileText className="h-4 w-4" />Request Documents</Button>
                 </CardContent>
               </Card>
             </div>

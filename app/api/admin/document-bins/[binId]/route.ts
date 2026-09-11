@@ -23,6 +23,16 @@ function isAdmin(request: NextRequest) {
   return request.cookies.get("viaje-role")?.value === "admin";
 }
 
+export async function GET(request: NextRequest, { params }: { params: { binId: string } }) {
+  if (!isAdmin(request)) return unauthorized();
+
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const snapshot = await adminDb.collection("documentBins").doc(params.binId).get();
+  if (!snapshot.exists) return NextResponse.json({ error: "Document bin not found" }, { status: 404 });
+
+  return NextResponse.json({ documentBin: serializeDocumentBin(snapshot.id, snapshot.data() ?? {}) });
+}
+
 function cleanRequirement(input: Partial<DocumentRequirement>, documentBinId: string): DocumentRequirement {
   const documentType = documentTypeOptions.includes(input.documentType as DocumentType) ? input.documentType as DocumentType : "Other";
   const acceptedFileTypes = Array.isArray(input.acceptedFileTypes)
@@ -42,6 +52,14 @@ function cleanRequirement(input: Partial<DocumentRequirement>, documentBinId: st
   };
 }
 
+async function deleteDocumentBinFiles(bin: ReturnType<typeof serializeDocumentBin>) {
+  await Promise.all(bin.requirements.flatMap((requirement) =>
+    requirement.uploads
+      .filter((upload) => upload.storageKey)
+      .map((upload) => deleteFile("travelDocuments", upload.storageKey))
+  ));
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { binId: string } }) {
   if (!isAdmin(request)) return unauthorized();
 
@@ -56,11 +74,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { binId:
 
   if (action === "cancelBin") {
     try {
-      await Promise.all(bin.requirements.flatMap((requirement) =>
-        requirement.uploads
-          .filter((upload) => upload.storageKey)
-          .map((upload) => deleteFile("travelDocuments", upload.storageKey))
-      ));
+      await deleteDocumentBinFiles(bin);
     } catch {
       return NextResponse.json({ error: "Unable to delete one or more uploaded files. Bin was not cancelled." }, { status: 500 });
     }
@@ -122,13 +136,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { binId
   }
 
   try {
-    await Promise.all(bin.requirements.flatMap((requirement) =>
-      requirement.uploads
-        .filter((upload) => upload.storageKey)
-        .map((upload) => deleteFile("travelDocuments", upload.storageKey))
-    ));
+    await deleteDocumentBinFiles(bin);
   } catch {
     return NextResponse.json({ error: "Unable to delete one or more uploaded files. Document bin was not deleted." }, { status: 500 });
+  }
+
+  if (bin.bookingId) {
+    await adminDb.collection("bookings").doc(bin.bookingId).set({
+      documentBinId: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
   }
 
   await ref.delete();

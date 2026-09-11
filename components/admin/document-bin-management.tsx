@@ -28,6 +28,11 @@ type RequirementDraft = {
   acceptedFileTypes: AcceptedFileType[];
 };
 
+type LinkedBookingContext = {
+  id: string;
+  reference: string;
+};
+
 const emptyRequirement = (): RequirementDraft => ({
   id: `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   documentType: "Passport",
@@ -64,6 +69,28 @@ function ProgressIndicator({ value }: { value: number }) {
     <div className="h-2 w-full overflow-hidden rounded-full bg-viaje-paperAlt">
       <div className="h-full rounded-full bg-viaje-red transition-all" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
+  );
+}
+
+export function DocumentBinProgressIndicator({ value }: { value: number }) {
+  return <ProgressIndicator value={value} />;
+}
+
+function bookingLink(bookingId: string) {
+  return `/admin/bookings?bookingId=${encodeURIComponent(bookingId)}`;
+}
+
+function linkedBookingLabel(bin: DocumentBin) {
+  return bin.bookingReference || bin.bookingId || "";
+}
+
+function LinkedBookingLink({ bookingId, label }: { bookingId?: string; label?: string }) {
+  if (!bookingId) return <span className="text-viaje-soft">&mdash;</span>;
+
+  return (
+    <a href={bookingLink(bookingId)} className="font-semibold text-viaje-red hover:underline">
+      {label || bookingId}
+    </a>
   );
 }
 
@@ -170,6 +197,7 @@ export function DocumentBinManagement() {
   const [bins, setBins] = useState<DocumentBin[]>([]);
   const [selected, setSelected] = useState<DocumentBin | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [linkedBooking, setLinkedBooking] = useState<LinkedBookingContext | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [requirements, setRequirements] = useState<RequirementDraft[]>([emptyRequirement()]);
   const [newRequirements, setNewRequirements] = useState<RequirementDraft[]>([]);
@@ -186,6 +214,46 @@ export function DocumentBinManagement() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const documentBinId = params.get("documentBinId") || "";
+    if (!documentBinId) return;
+
+    const existing = bins.find((bin) => bin.id === documentBinId);
+    if (existing) {
+      setSelected(existing);
+      return;
+    }
+
+    fetch(`/api/admin/document-bins/${encodeURIComponent(documentBinId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load document bin")))
+      .then((data) => setSelected(data.documentBin))
+      .catch(() => setStatus("Unable to load linked document bin."));
+  }, [bins, loading]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shouldCreate = params.get("createDocumentBin") === "1";
+    const bookingId = params.get("bookingId") || "";
+    if (!shouldCreate || !bookingId) return;
+
+    setShowCreate(true);
+    fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load linked booking")))
+      .then((data) => {
+        const booking = data.booking ?? {};
+        setLinkedBooking({ id: booking.id, reference: booking.reference || booking.id });
+        setForm({
+          clientName: [booking.groupContact?.firstName, booking.groupContact?.lastName].filter(Boolean).join(" ") || "",
+          email: booking.groupContact?.emailAddress || "",
+          contactNumber: booking.groupContact?.mobileNumber || "",
+          purpose: "Tour Package",
+        });
+      })
+      .catch(() => setStatus("Unable to load linked booking details."));
+  }, []);
+
   const visibleBins = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return bins;
@@ -195,6 +263,7 @@ export function DocumentBinManagement() {
   function resetCreate() {
     setForm(emptyForm);
     setRequirements([emptyRequirement()]);
+    setLinkedBooking(null);
     setShowCreate(false);
   }
 
@@ -224,7 +293,7 @@ export function DocumentBinManagement() {
     const response = await fetch("/api/admin/document-bins", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, requirements }),
+      body: JSON.stringify({ ...form, requirements, bookingId: linkedBooking?.id || "" }),
     });
     setSaving(false);
 
@@ -236,6 +305,7 @@ export function DocumentBinManagement() {
 
     const data = await response.json();
     setBins((current) => [data.documentBin, ...current]);
+    setSelected(data.documentBin);
     resetCreate();
     setStatus("Document bin created.");
   }
@@ -306,7 +376,7 @@ export function DocumentBinManagement() {
           <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-viaje-navy">Documents</h1>
         </div>
-        <Button type="button" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" />Create Document Bin</Button>
+        <Button type="button" onClick={() => { setLinkedBooking(null); setShowCreate(true); }}><Plus className="h-4 w-4" />Create Document Bin</Button>
       </div>
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
@@ -319,15 +389,16 @@ export function DocumentBinManagement() {
         <CardContent>
           <Table>
             <THead>
-              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Created At</TH><TH>Progress</TH><TH>Status</TH><TH>Actions</TH></TR>
+              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Linked Booking ID</TH><TH>Created At</TH><TH>Progress</TH><TH>Status</TH><TH>Actions</TH></TR>
             </THead>
             <TBody>
-              {loading && <TR><TD colSpan={6}>Loading document bins...</TD></TR>}
-              {!loading && !visibleBins.length && <TR><TD colSpan={6}>No document bins yet.</TD></TR>}
+              {loading && <TR><TD colSpan={7}>Loading document bins...</TD></TR>}
+              {!loading && !visibleBins.length && <TR><TD colSpan={7}>No document bins yet.</TD></TR>}
               {!loading && visibleBins.map((bin) => (
                 <TR key={bin.id}>
                   <TD>{bin.referenceNumber}</TD>
                   <TD>{bin.clientName}</TD>
+                  <TD><LinkedBookingLink bookingId={bin.bookingId} label={linkedBookingLabel(bin)} /></TD>
                   <TD>{bin.createdAt ? formatDate(bin.createdAt) : "N/A"}</TD>
                   <TD>
                     <div className="grid min-w-[150px] gap-2">
@@ -367,6 +438,14 @@ export function DocumentBinManagement() {
               <Card>
                 <CardHeader><CardTitle>Client Information</CardTitle></CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
+                  {linkedBooking && (
+                    <div className="grid gap-1.5 md:col-span-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Linked Booking ID</span>
+                      <a href={bookingLink(linkedBooking.id)} className="w-fit font-semibold text-viaje-red hover:underline">
+                        {linkedBooking.reference}
+                      </a>
+                    </div>
+                  )}
                   <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Client Name</span><Input value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} /></label>
                   <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Email</span><Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></label>
                   <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Contact Number</span><Input value={form.contactNumber} onChange={(event) => setForm((current) => ({ ...current, contactNumber: event.target.value }))} /></label>
@@ -420,6 +499,7 @@ export function DocumentBinManagement() {
                   <p className="min-w-0"><span className="text-viaje-soft">Email</span><br /><strong className="break-words">{selected.email}</strong></p>
                   <p className="min-w-0"><span className="text-viaje-soft">Contact Number</span><br /><strong>{selected.contactNumber}</strong></p>
                   <p className="min-w-0"><span className="text-viaje-soft">Purpose</span><br /><strong className="break-words">{selected.purpose || "N/A"}</strong></p>
+                  <p className="min-w-0"><span className="text-viaje-soft">Linked Booking ID</span><br /><LinkedBookingLink bookingId={selected.bookingId} label={linkedBookingLabel(selected)} /></p>
                   <p className="min-w-0"><span className="text-viaje-soft">Created Date</span><br /><strong>{selected.createdAt ? formatDate(selected.createdAt) : "N/A"}</strong></p>
                   <p className="min-w-0"><span className="text-viaje-soft">Bin Status</span><br /><StatusBadge status={selected.status} /></p>
                   <p className="min-w-0"><span className="text-viaje-soft">Submission Progress</span><br /><strong>{progressLabel(selected)}</strong></p>

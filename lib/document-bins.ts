@@ -41,6 +41,8 @@ export type DocumentRequirement = {
 export type DocumentBin = {
   id: string;
   referenceNumber: string;
+  bookingId?: string;
+  bookingReference?: string;
   clientName: string;
   email: string;
   contactNumber: string;
@@ -91,6 +93,8 @@ export function serializeDocumentBin(id: string, data: FirebaseFirestore.Documen
   return {
     id,
     referenceNumber: String(data.referenceNumber || ""),
+    bookingId: String(data.bookingId || ""),
+    bookingReference: String(data.bookingReference || ""),
     clientName: String(data.clientName || ""),
     email: String(data.email || ""),
     contactNumber: String(data.contactNumber || ""),

@@ -84,6 +84,18 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error }, { status: 400 });
 
   const { adminDb } = await import("@/lib/firebase-admin");
+  const bookingId = String(body.bookingId || "").trim();
+  let bookingReference = "";
+
+  if (bookingId) {
+    const bookingSnapshot = await adminDb.collection("bookings").doc(bookingId).get();
+    if (!bookingSnapshot.exists) return NextResponse.json({ error: "Linked booking not found." }, { status: 404 });
+
+    const booking = bookingSnapshot.data() ?? {};
+    if (booking.documentBinId) return NextResponse.json({ error: "This booking already has a linked document bin." }, { status: 409 });
+    bookingReference = String(booking.reference || bookingId);
+  }
+
   const countSnapshot = await adminDb.collection("documentBins").count().get();
   const nextNumber = 1001 + countSnapshot.data().count;
   const docRef = adminDb.collection("documentBins").doc();
@@ -91,6 +103,7 @@ export async function POST(request: NextRequest) {
   const documentBin = {
     id: docRef.id,
     referenceNumber: `VDOC-${nextNumber}`,
+    ...(bookingId ? { bookingId, bookingReference } : {}),
     clientName: String(body.clientName || "").trim(),
     email: String(body.email || "").trim(),
     contactNumber: String(body.contactNumber || "").trim(),
@@ -102,7 +115,32 @@ export async function POST(request: NextRequest) {
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  await docRef.set(documentBin);
+  if (bookingId) {
+    try {
+      await adminDb.runTransaction(async (transaction) => {
+        const bookingRef = adminDb.collection("bookings").doc(bookingId);
+        const bookingSnapshot = await transaction.get(bookingRef);
+        if (!bookingSnapshot.exists) throw new Error("LINKED_BOOKING_NOT_FOUND");
+        if (bookingSnapshot.data()?.documentBinId) throw new Error("BOOKING_ALREADY_LINKED");
+
+        transaction.set(docRef, documentBin);
+        transaction.set(bookingRef, {
+          documentBinId: docRef.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      });
+    } catch (transactionError) {
+      if (transactionError instanceof Error && transactionError.message === "BOOKING_ALREADY_LINKED") {
+        return NextResponse.json({ error: "This booking already has a linked document bin." }, { status: 409 });
+      }
+      if (transactionError instanceof Error && transactionError.message === "LINKED_BOOKING_NOT_FOUND") {
+        return NextResponse.json({ error: "Linked booking not found." }, { status: 404 });
+      }
+      throw transactionError;
+    }
+  } else {
+    await docRef.set(documentBin);
+  }
 
   return NextResponse.json({
     documentBin: serializeDocumentBin(docRef.id, { ...documentBin, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
