@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email-service";
 import { transactionalEmailTypes, type TransactionalEmailType } from "@/lib/email-types";
 import {
   BookingConfirmedEmail,
@@ -9,6 +8,13 @@ import {
   PaymentRequestEmail,
   emailTemplateSubjects,
 } from "@/lib/email-templates";
+import {
+  sendBookingConfirmedEmail,
+  sendBookingReceivedEmail,
+  sendDocumentRequestEmail,
+  sendPaymentRequestEmail,
+  sendSubsequentPaymentEmail,
+} from "@/lib/resend-template-registry";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -43,7 +49,7 @@ function sampleHtml(emailType: TransactionalEmailType) {
       paymentAmount: "PHP 69,000.00",
       remainingBalance: "PHP 69,000.00",
       paymentMethod: "Bank Transfer",
-      itinerary: "Tokyo, Mt. Fuji, Osaka",
+      itineraryContent: "Tokyo, Mt. Fuji, Osaka",
       bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
     });
   }
@@ -97,8 +103,87 @@ function sampleHtml(emailType: TransactionalEmailType) {
     totalPaid: "PHP 138,000.00",
     remainingBalance: "PHP 0.00",
     bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
-    fullyPaid: true,
+    isFullyPaid: true,
   });
+}
+
+function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string) {
+  const options = {
+    recipient,
+    subject: `[TEST] ${emailTemplateSubjects[emailType]}`,
+    relatedEntityType: "test" as const,
+    relatedEntityId: "VIAJE-TEST-001",
+    relatedReference: "VIAJE-TEST-001",
+    metadata: { testSend: true },
+  };
+
+  if (emailType === "BOOKING_RECEIVED") {
+    return sendBookingReceivedEmail({
+      firstName: "Juan",
+      bookingReference: "VIAJE-TEST-001",
+      packageName: "Japan Autumn Tour",
+      departureDate: "October 12, 2026",
+      guestCount: 2,
+      totalAmount: "PHP 138,000.00",
+      paymentAmount: "PHP 69,000.00",
+      remainingBalance: "PHP 69,000.00",
+      paymentMethod: "Bank Transfer",
+      itineraryContent: "Tokyo, Mt. Fuji, Osaka",
+      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+    }, options);
+  }
+
+  if (emailType === "BOOKING_CONFIRMED") {
+    return sendBookingConfirmedEmail({
+      firstName: "Juan",
+      bookingReference: "VIAJE-TEST-001",
+      packageName: "Japan Autumn Tour",
+      paymentName: "Downpayment",
+      paymentAmount: "PHP 69,000.00",
+      paymentMethod: "Bank Transfer",
+      paymentDate: "September 11, 2026",
+      totalAmount: "PHP 138,000.00",
+      totalPaid: "PHP 69,000.00",
+      remainingBalance: "PHP 69,000.00",
+      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+    }, options);
+  }
+
+  if (emailType === "DOCUMENT_REQUEST") {
+    return sendDocumentRequestEmail({
+      clientName: "Juan Dela Cruz",
+      documentBinReference: "VDOC-TEST-001",
+      purpose: "Tour Package",
+      documentRequirements: ["Passport", "1x1 Picture", "Birth Certificate"],
+      documentBinUrl: appUrl("/documents/sample-token"),
+    }, options);
+  }
+
+  if (emailType === "PAYMENT_REQUEST") {
+    return sendPaymentRequestEmail({
+      firstName: "Juan",
+      bookingReference: "VIAJE-TEST-001",
+      packageName: "Japan Autumn Tour",
+      paymentName: "Remaining Balance",
+      amountDue: "PHP 69,000.00",
+      dueDate: "October 1, 2026",
+      paymentUrl: appUrl("/checkout/payment/sample-draft"),
+    }, options);
+  }
+
+  return sendSubsequentPaymentEmail({
+    firstName: "Juan",
+    bookingReference: "VIAJE-TEST-001",
+    paymentName: "Remaining Balance",
+    paymentAmount: "PHP 69,000.00",
+    paymentMethod: "Bank Transfer",
+    paymentDate: "September 11, 2026",
+    totalAmount: "PHP 138,000.00",
+    totalPaid: "PHP 138,000.00",
+    remainingBalance: "PHP 0.00",
+    bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+    isFullyPaid: true,
+  }, options);
 }
 
 export async function POST(request: NextRequest) {
@@ -113,16 +198,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid email type." }, { status: 400 });
   }
 
-  const result = await sendEmail({
-    recipient,
-    emailType,
-    subject: `[TEST] ${emailTemplateSubjects[emailType]}`,
-    html: sampleHtml(emailType),
-    relatedEntityType: "test",
-    relatedEntityId: "VIAJE-TEST-001",
-    relatedReference: "VIAJE-TEST-001",
-    metadata: { testSend: true },
-  });
+  const result = body.useLocalHtml === true
+    ? await import("@/lib/email-service").then(({ sendEmail }) => sendEmail({
+        recipient,
+        emailType,
+        subject: `[TEST] ${emailTemplateSubjects[emailType]}`,
+        html: sampleHtml(emailType),
+        relatedEntityType: "test",
+        relatedEntityId: "VIAJE-TEST-001",
+        relatedReference: "VIAJE-TEST-001",
+        metadata: { testSend: true, localHtml: true },
+      }))
+    : await sendSampleTemplate(emailType, recipient);
 
   if (!result.ok) return NextResponse.json({ error: result.error, logId: result.logId || "" }, { status: 400 });
 

@@ -7,6 +7,8 @@ import { deleteFile } from "@/lib/storage";
 
 const paymentStatuses = ["pending", "for_verification", "verified", "rejected", "paid", "partially_paid"];
 const bookingStatuses = ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"];
+const allowedContactFields = ["firstName", "middleName", "lastName", "emailAddress", "mobileNumber", "nationality"];
+const allowedGuestFields = ["firstName", "middleName", "lastName", "birthdate", "nationality", "passportNumber", "isPwd"];
 
 function normalizedStatus(value: unknown) {
   return String(value || "").toLowerCase();
@@ -38,6 +40,22 @@ function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ i
 
 function documentToken() {
   return randomBytes(16).toString("base64url");
+}
+
+function cleanStringMap(input: unknown, allowedFields: string[]) {
+  const source = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  return Object.fromEntries(
+    allowedFields
+      .filter((field) => field in source)
+      .map((field) => [field, String(source[field] ?? "").trim()])
+  );
+}
+
+function cleanGuest(input: unknown) {
+  const source = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const guest = cleanStringMap(source, allowedGuestFields.filter((field) => field !== "isPwd"));
+  if ("isPwd" in source) return { ...guest, isPwd: Boolean(source.isPwd) };
+  return guest;
 }
 
 function timestampValue(value: unknown) {
@@ -143,6 +161,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const paymentSchedule = [...adjustedSchedule, { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" }];
     await ref.set({ paymentSchedule, paymentStatus: derivedPaymentStatus(paymentSchedule), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return NextResponse.json({ paymentSchedule });
+  }
+
+  if (action === "updateContactGuests") {
+    const currentGuests = Array.isArray(booking.guests) ? booking.guests : [];
+    const incomingGuests = Array.isArray(body.guests) ? body.guests : [];
+
+    if (incomingGuests.length !== currentGuests.length) {
+      return NextResponse.json({ error: "Guest count cannot be changed from Booking Details." }, { status: 400 });
+    }
+
+    const groupContact = {
+      ...(booking.groupContact && typeof booking.groupContact === "object" ? booking.groupContact : {}),
+      ...cleanStringMap(body.groupContact, allowedContactFields),
+    };
+    const guests = currentGuests.map((guest, index) => ({
+      ...(guest && typeof guest === "object" ? guest : {}),
+      ...cleanGuest(incomingGuests[index]),
+    }));
+
+    await ref.set({ groupContact, guests, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return NextResponse.json({ groupContact, guests });
   }
 
   if (action === "addDocumentRequirement") {

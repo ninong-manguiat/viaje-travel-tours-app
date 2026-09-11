@@ -42,7 +42,7 @@ Transactional email infrastructure uses Resend. Configure these server-side vari
 }
 ```
 
-Supported test email types are `BOOKING_RECEIVED`, `BOOKING_CONFIRMED`, `DOCUMENT_REQUEST`, `PAYMENT_REQUEST`, and `PAYMENT_CONFIRMED`. Test sending works in development; set `ENABLE_EMAIL_TEST_SEND=true` only when you intentionally want to allow the admin-only test route in a deployed environment.
+Supported test email types are `BOOKING_RECEIVED`, `BOOKING_CONFIRMED`, `DOCUMENT_REQUEST`, `PAYMENT_REQUEST`, and `SUBSEQUENT_PAYMENT_REQUEST`. Test sending works in development; set `ENABLE_EMAIL_TEST_SEND=true` only when you intentionally want to allow the admin-only test route in a deployed environment.
 
 ## Versioning
 

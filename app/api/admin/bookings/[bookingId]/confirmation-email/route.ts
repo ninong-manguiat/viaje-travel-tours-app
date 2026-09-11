@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { emailTemplateSubjects } from "@/lib/email-templates";
-import { sendEmail } from "@/lib/email-service";
 import { getPackageById } from "@/lib/package-data";
+import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const bookingReceivedTemplateAlias = "booking-received";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -84,26 +83,21 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   const departureDate = String(booking.bookingSelections?.selectedDeparture?.startDate || booking.departureDate || "");
   const bookingUrl = appUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`);
 
-  const result = await sendEmail({
+  const result = await sendBookingReceivedEmail({
+    firstName: String(booking.groupContact?.firstName || "there"),
+    bookingReference: reference,
+    packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
+    departureDate: dateLabel(departureDate),
+    guestCount: Array.isArray(booking.guests) ? booking.guests.length : numberValue(booking.bookingSelections?.pax),
+    totalAmount: formatPeso(totalAmount),
+    paymentAmount: formatPeso(paymentAmount),
+    remainingBalance: formatPeso(remainingBalance),
+    paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
+    itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
+    bookingUrl,
+  }, {
     recipient,
-    emailType: "BOOKING_RECEIVED",
     subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,
-    template: {
-      id: bookingReceivedTemplateAlias,
-      variables: {
-        firstName: String(booking.groupContact?.firstName || "there"),
-        bookingReference: reference,
-        packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
-        departureDate: dateLabel(departureDate),
-        guestCount: Array.isArray(booking.guests) ? booking.guests.length : numberValue(booking.bookingSelections?.pax),
-        totalAmount: formatPeso(totalAmount),
-        paymentAmount: formatPeso(paymentAmount),
-        remainingBalance: formatPeso(remainingBalance),
-        paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
-        itineraryContent: itineraryContent(pkg),
-        bookingUrl,
-      },
-    },
     relatedEntityType: "booking",
     relatedEntityId: params.bookingId,
     relatedReference: reference,

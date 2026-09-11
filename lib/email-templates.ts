@@ -2,8 +2,8 @@ import {
   type BookingConfirmedEmailData,
   type BookingReceivedEmailData,
   type DocumentRequestEmailData,
-  type PaymentConfirmedEmailData,
   type PaymentRequestEmailData,
+  type SubsequentPaymentRequestEmailData,
   type TransactionalEmailType,
 } from "@/lib/email-types";
 
@@ -125,7 +125,7 @@ export function BookingReceivedEmail(data: BookingReceivedEmailData) {
     ["Payment Method", data.paymentMethod],
   ];
 
-  if (data.itinerary.trim()) summaryRows.push(["Itinerary", data.itinerary]);
+  if (data.itineraryContent.trim()) summaryRows.push(["Itinerary", data.itineraryContent]);
 
   return layout(
     "Booking Received",
@@ -194,8 +194,8 @@ export function PaymentRequestEmail(data: PaymentRequestEmailData) {
   );
 }
 
-export function PaymentConfirmedEmail(data: PaymentConfirmedEmailData) {
-  const nextPayment = data.fullyPaid
+export function PaymentConfirmedEmail(data: SubsequentPaymentRequestEmailData) {
+  const nextPayment = data.isFullyPaid
     ? [["Payment Status", "Fully paid"] as [string, string]]
     : [
         ["Next Payment", data.nextPaymentName || "To be advised"] as [string, string],
@@ -229,5 +229,5 @@ export const emailTemplateSubjects: Record<TransactionalEmailType, string> = {
   BOOKING_CONFIRMED: "Viaje booking confirmed",
   DOCUMENT_REQUEST: "Viaje document request",
   PAYMENT_REQUEST: "Viaje payment request",
-  PAYMENT_CONFIRMED: "Viaje payment confirmed",
+  SUBSEQUENT_PAYMENT_REQUEST: "Viaje subsequent payment request",
 };

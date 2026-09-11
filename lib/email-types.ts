@@ -3,7 +3,7 @@ export const transactionalEmailTypes = [
   "BOOKING_CONFIRMED",
   "DOCUMENT_REQUEST",
   "PAYMENT_REQUEST",
-  "PAYMENT_CONFIRMED",
+  "SUBSEQUENT_PAYMENT_REQUEST",
 ] as const;
 
 export type TransactionalEmailType = typeof transactionalEmailTypes[number];
@@ -39,7 +39,7 @@ export type BookingReceivedEmailData = {
   paymentAmount: string;
   remainingBalance: string;
   paymentMethod: string;
-  itinerary: string;
+  itineraryContent: string;
   bookingUrl: string;
 };
 
@@ -75,7 +75,7 @@ export type PaymentRequestEmailData = {
   paymentUrl: string;
 };
 
-export type PaymentConfirmedEmailData = {
+export type SubsequentPaymentRequestEmailData = {
   firstName: string;
   bookingReference: string;
   paymentName: string;
@@ -89,5 +89,5 @@ export type PaymentConfirmedEmailData = {
   nextPaymentName?: string;
   nextPaymentAmount?: string;
   nextPaymentDueDate?: string;
-  fullyPaid?: boolean;
+  isFullyPaid: boolean;
 };
