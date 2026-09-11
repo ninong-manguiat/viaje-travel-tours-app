@@ -133,6 +133,7 @@ export function BookingManagement() {
   const [documentBin, setDocumentBin] = useState<DocumentBin | null>(null);
   const [documentBinLoading, setDocumentBinLoading] = useState(false);
   const [newPayment, setNewPayment] = useState({ label: "", amount: "", dueDate: "" });
+  const [sendingConfirmation, setSendingConfirmation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
 
@@ -311,6 +312,22 @@ export function BookingManagement() {
     window.location.href = `/admin/documents?documentBinId=${encodeURIComponent(documentBin.id)}`;
   }
 
+  async function sendConfirmationEmail() {
+    if (!selected || sendingConfirmation) return;
+
+    setSendingConfirmation(true);
+    const response = await fetch(`/api/admin/bookings/${selected.id}/confirmation-email`, { method: "POST" });
+    setSendingConfirmation(false);
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setStatus(data?.error ?? "Unable to send confirmation email.");
+      return;
+    }
+
+    setStatus("Confirmation email sent successfully.");
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -345,7 +362,7 @@ export function BookingManagement() {
       </Card>
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[8px] bg-white shadow-[0_28px_80px_-30px_rgba(0,0,0,0.65)]">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-viaje-line bg-white px-5 py-4">
               <div>
@@ -515,7 +532,9 @@ export function BookingManagement() {
               <Card className="lg:col-span-2">
                 <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
                 <CardContent className="flex flex-wrap gap-3">
-                  <Button type="button" variant="outline"><Mail className="h-4 w-4" />Send Confirmation Email & Itinerary</Button>
+                  <Button type="button" variant="outline" onClick={sendConfirmationEmail} disabled={sendingConfirmation}>
+                    <Mail className="h-4 w-4" />{sendingConfirmation ? "Sending..." : "Send Confirmation Email & Itinerary"}
+                  </Button>
                 </CardContent>
               </Card>
             </div>

@@ -28,6 +28,28 @@ npm run deploy:prod
 
 `npm run deploy qa` and `npm run deploy prod` also work. Deployment currently builds with the matching env file and runs `firebase deploy --only hosting,firestore:rules,firestore:indexes --project <project id>`.
 
+## Email
+
+Transactional email infrastructure uses Resend. Configure these server-side variables in the matching environment file and in your deployment provider:
+
+```bash
+RESEND_API_KEY=re_LeJhnBvZ_2fcbss4nVU3migAVKaocoiqc
+EMAIL_FROM=Viaje Travel and Tours <bookings@viajetravelandtours.com>
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+ENABLE_EMAIL_TEST_SEND=false
+```
+
+`NEXT_PUBLIC_APP_URL` is used to build absolute links and public email asset URLs. To send a guarded test email, sign in as admin and POST to `/api/admin/email/test-send` with:
+
+```json
+{
+  "recipient": "test@example.com",
+  "emailType": "BOOKING_RECEIVED"
+}
+```
+
+Supported test email types are `BOOKING_RECEIVED`, `BOOKING_CONFIRMED`, `DOCUMENT_REQUEST`, `PAYMENT_REQUEST`, and `PAYMENT_CONFIRMED`. Test sending works in development; set `ENABLE_EMAIL_TEST_SEND=true` only when you intentionally want to allow the admin-only test route in a deployed environment.
+
 ## Versioning
 
 The project starts at `1.1.0`.
