@@ -32,11 +32,6 @@ npm run deploy:prod
 
 Transactional email infrastructure uses Resend. Configure these server-side variables in the matching environment file and in your deployment provider:
 
-```bash
-EMAIL_FROM=Viaje Travel and Tours <bookings@viajetravelandtours.com>
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-ENABLE_EMAIL_TEST_SEND=false
-```
 
 `NEXT_PUBLIC_APP_URL` is used to build absolute links and public email asset URLs. To send a guarded test email, sign in as admin and POST to `/api/admin/email/test-send` with:
 
