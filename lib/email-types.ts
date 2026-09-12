@@ -4,11 +4,12 @@ export const transactionalEmailTypes = [
   "DOCUMENT_REQUEST",
   "PAYMENT_REQUEST",
   "SUBSEQUENT_PAYMENT_REQUEST",
+  "QUOTATION",
 ] as const;
 
 export type TransactionalEmailType = typeof transactionalEmailTypes[number];
 
-export type EmailRelatedEntityType = "booking" | "documentBin" | "payment" | "test";
+export type EmailRelatedEntityType = "booking" | "documentBin" | "payment" | "quotation" | "QUOTATION" | "test";
 
 export type SendEmailPayload = {
   recipient: string;
@@ -90,4 +91,13 @@ export type SubsequentPaymentRequestEmailData = {
   nextPaymentAmount?: string;
   nextPaymentDueDate?: string;
   isFullyPaid: boolean;
+};
+
+export type QuotationEmailData = {
+  clientName: string;
+  quotationReference: string;
+  quotationItemsHtml: string;
+  quotationItemsText: string;
+  grandTotal: string;
+  quotationUrl: string;
 };

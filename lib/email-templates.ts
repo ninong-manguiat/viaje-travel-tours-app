@@ -230,4 +230,5 @@ export const emailTemplateSubjects: Record<TransactionalEmailType, string> = {
   DOCUMENT_REQUEST: "Viaje document request",
   PAYMENT_REQUEST: "Viaje payment request",
   SUBSEQUENT_PAYMENT_REQUEST: "Viaje subsequent payment request",
+  QUOTATION: "Viaje quotation",
 };

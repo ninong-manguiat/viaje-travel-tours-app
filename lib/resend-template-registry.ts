@@ -6,6 +6,7 @@ import {
   type BookingReceivedEmailData,
   type DocumentRequestEmailData,
   type PaymentRequestEmailData,
+  type QuotationEmailData,
   type SendEmailResult,
   type SubsequentPaymentRequestEmailData,
   type TransactionalEmailType,
@@ -15,7 +16,7 @@ import { formatDate, formatPeso } from "@/lib/utils";
 
 type TemplateSendOptions = {
   recipient: string;
-  relatedEntityType?: "booking" | "documentBin" | "payment" | "test";
+  relatedEntityType?: "booking" | "documentBin" | "payment" | "quotation" | "QUOTATION" | "test";
   relatedEntityId?: string;
   relatedReference?: string;
   subject?: string;
@@ -28,6 +29,7 @@ export const resendTemplateAliases = {
   DOCUMENT_REQUEST: "document-request",
   PAYMENT_REQUEST: "payment-request",
   SUBSEQUENT_PAYMENT_REQUEST: "subsequent-payment-request",
+  QUOTATION: "quotation-builder",
 } satisfies Record<TransactionalEmailType, string>;
 
 type TemplatePayloads = {
@@ -36,6 +38,7 @@ type TemplatePayloads = {
   DOCUMENT_REQUEST: DocumentRequestEmailData;
   PAYMENT_REQUEST: PaymentRequestEmailData;
   SUBSEQUENT_PAYMENT_REQUEST: SubsequentPaymentRequestEmailData;
+  QUOTATION: QuotationEmailData;
 };
 
 const requiredFields = {
@@ -93,6 +96,14 @@ const requiredFields = {
     "remainingBalance",
     "bookingUrl",
     "isFullyPaid",
+  ],
+  QUOTATION: [
+    "clientName",
+    "quotationReference",
+    "quotationItemsHtml",
+    "quotationItemsText",
+    "grandTotal",
+    "quotationUrl",
   ],
 } satisfies Record<TransactionalEmailType, string[]>;
 
@@ -181,4 +192,8 @@ export function sendPaymentRequestEmail(data: PaymentRequestEmailData, options: 
 
 export function sendSubsequentPaymentEmail(data: SubsequentPaymentRequestEmailData, options: TemplateSendOptions) {
   return sendTemplateEmail("SUBSEQUENT_PAYMENT_REQUEST", data, options);
+}
+
+export function sendQuotationEmail(data: QuotationEmailData, options: TemplateSendOptions) {
+  return sendTemplateEmail("QUOTATION", data, options);
 }

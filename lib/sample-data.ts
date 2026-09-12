@@ -123,7 +123,7 @@ export const quotations: Quotation[] = [
     total: 139400,
     validUntil: "2026-08-30",
     paymentTerms: "30% deposit within 3 banking days; balance 30 days before departure.",
-    status: "sent"
+    status: "FINALIZED"
   }
 ];
 

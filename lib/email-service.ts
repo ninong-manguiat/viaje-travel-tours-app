@@ -2,7 +2,6 @@ import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
 import { Resend } from "resend";
-import { adminDb } from "@/lib/firebase-admin";
 import { transactionalEmailTypes, type SendEmailPayload, type SendEmailResult } from "@/lib/email-types";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,6 +38,7 @@ function validatePayload(payload: SendEmailPayload) {
 }
 
 async function logEmail(payload: SendEmailPayload, status: "SENT" | "FAILED", resendEmailId = "", errorMessage = "") {
+  const { adminDb } = await import("@/lib/firebase-admin");
   const ref = adminDb.collection("emailLogs").doc();
   await ref.set({
     id: ref.id,
