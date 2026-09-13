@@ -86,12 +86,12 @@ function normalizeGuests(value: Guest[] | undefined, count: number) {
 }
 
 function hasGuestInfo(guests: Guest[], groupContact: GroupContact) {
-  return guests.every((guest) => guest.firstName && guest.lastName && guest.nationality) &&
-    Boolean(groupContact.firstName && groupContact.lastName && groupContact.mobileNumber && groupContact.emailAddress);
+  return Object.keys(validateGuestStep(guests, groupContact)).length === 0;
 }
 
 function validateGuestStep(guests: Guest[], groupContact: GroupContact) {
   const errors: ValidationErrors = {};
+  const normalizedContactNumber = normalizeContactNumber(groupContact.mobileNumber);
 
   guests.forEach((guest, index) => {
     if (!guest.firstName.trim()) errors[`guest-${index}-firstName`] = `Guest ${index + 1} first name is required.`;
@@ -102,9 +102,28 @@ function validateGuestStep(guests: Guest[], groupContact: GroupContact) {
   if (!groupContact.firstName.trim()) errors.contactFirstName = "Group contact first name is required.";
   if (!groupContact.lastName.trim()) errors.contactLastName = "Group contact last name is required.";
   if (!groupContact.mobileNumber.trim()) errors.contactMobileNumber = "Group contact mobile number is required.";
+  else if (!isValidContactNumber(normalizedContactNumber)) errors.contactMobileNumber = "Group contact mobile number must be a valid +63 mobile number.";
   if (!groupContact.emailAddress.trim()) errors.contactEmailAddress = "Group contact email address is required.";
+  else if (!isValidEmail(groupContact.emailAddress)) errors.contactEmailAddress = "Group contact email address must be valid.";
 
   return errors;
+}
+
+function normalizeContactNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "+63";
+  if (digits.startsWith("630")) return `+63${digits.slice(3, 13)}`;
+  if (digits.startsWith("63")) return `+${digits.slice(0, 12)}`;
+  if (digits.startsWith("0")) return `+63${digits.slice(1, 11)}`;
+  return `+63${digits.slice(0, 10)}`;
+}
+
+function isValidContactNumber(value: string) {
+  return /^\+639\d{9}$/.test(normalizeContactNumber(value));
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function dateOnly(value?: string) {
@@ -233,7 +252,6 @@ export function GuestCheckoutClient({
   const [paymentMethodId, setPaymentMethodId] = useState(draft?.paymentMethodId ?? paymentMethods[0]?.id ?? "");
   const [paymentOption, setPaymentOption] = useState<PaymentOption>(draft?.paymentOption ?? "full");
   const [paymentProofUrl, setPaymentProofUrl] = useState(draft?.paymentProofUrl ?? "");
-  const [paymentReference, setPaymentReference] = useState(draft?.paymentReference ?? "");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -261,18 +279,22 @@ export function GuestCheckoutClient({
       finalAmount,
     },
     guests,
-    groupContact,
+    groupContact: { ...groupContact, emailAddress: groupContact.emailAddress.trim(), mobileNumber: normalizeContactNumber(groupContact.mobileNumber) },
     useGuestOne,
     paymentMethodId: selectedPaymentMethod?.id ?? "",
     paymentMethodReferenceNumber: selectedPaymentMethod?.referenceNumber ?? "",
     paymentOption: effectivePaymentOption,
     paymentSchedule,
     paymentProofUrl,
-    paymentReference,
+    paymentReference: "",
     currentStep: step,
-  }), [addonAmount, departureAdditionalAmount, effectivePaymentOption, finalAmount, groupContact, guestCount, guests, paymentProofUrl, paymentReference, paymentSchedule, pkg.id, pkg.price, pkg.slug, selectedAddon?.id, selectedDeparture?.id, selectedPaymentMethod?.id, selectedPaymentMethod?.referenceNumber, step, useGuestOne]);
+  }), [addonAmount, departureAdditionalAmount, effectivePaymentOption, finalAmount, groupContact, guestCount, guests, paymentProofUrl, paymentSchedule, pkg.id, pkg.price, pkg.slug, selectedAddon?.id, selectedDeparture?.id, selectedPaymentMethod?.id, selectedPaymentMethod?.referenceNumber, step, useGuestOne]);
 
   function goToStep(nextStep: CheckoutStep) {
+    if (nextStep === "payment") {
+      continueToPayment();
+      return;
+    }
     setStep(nextStep);
     if (draftId) router.replace(`/guest-checkout/${draftId}?step=${nextStep}`);
   }
@@ -283,11 +305,13 @@ export function GuestCheckoutClient({
 
     if (Object.keys(errors).length) return;
 
+    const normalizedGroupContact = { ...groupContact, emailAddress: groupContact.emailAddress.trim(), mobileNumber: normalizeContactNumber(groupContact.mobileNumber) };
+    setGroupContact(normalizedGroupContact);
     setSaveState("saving");
     const response = await fetch(draftId ? `/api/booking-drafts/${draftId}` : "/api/booking-drafts", {
       method: draftId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...draftPayload, currentStep: "payment" }),
+      body: JSON.stringify({ ...draftPayload, groupContact: normalizedGroupContact, currentStep: "payment" }),
     });
 
     if (!response.ok) {
@@ -337,7 +361,7 @@ export function GuestCheckoutClient({
         groupContact,
         payment: {
           method: selectedPaymentMethod.id,
-          referenceNumber: paymentReference,
+          referenceNumber: "",
           amountSubmitted: dueNow,
           receiptUrl: paymentProofUrl,
           paymentMethodReferenceNumber: selectedPaymentMethod?.referenceNumber ?? "",
@@ -449,7 +473,7 @@ export function GuestCheckoutClient({
                   </label>
                   <label className={fieldClass}><span className={labelClass}>First Name</span><Input required value={groupContact.firstName} onChange={(event) => setGroupContact((current) => ({ ...current, firstName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
                   <label className={fieldClass}><span className={labelClass}>Last Name</span><Input required value={groupContact.lastName} onChange={(event) => setGroupContact((current) => ({ ...current, lastName: upper(event.target.value) }))} disabled={useGuestOne} /></label>
-                  <label className={fieldClass}><span className={labelClass}>Mobile Number</span><Input required value={groupContact.mobileNumber} onChange={(event) => setGroupContact((current) => ({ ...current, mobileNumber: event.target.value }))} /></label>
+                  <label className={fieldClass}><span className={labelClass}>Mobile Number</span><Input required value={groupContact.mobileNumber || "+63"} onChange={(event) => setGroupContact((current) => ({ ...current, mobileNumber: normalizeContactNumber(event.target.value) }))} /></label>
                   <label className={fieldClass}>
                     <span className={labelClass}>Email Address</span>
                     <Input required type="email" value={groupContact.emailAddress} onChange={(event) => setGroupContact((current) => ({ ...current, emailAddress: event.target.value }))} />
@@ -514,7 +538,6 @@ export function GuestCheckoutClient({
                             <p className="font-semibold text-viaje-navy">{selectedPaymentMethod.bank}</p>
                             <p className="mt-1 text-viaje-soft">Reference Number: <strong className="text-viaje-navy">{selectedPaymentMethod.referenceNumber}</strong></p>
                           </div>
-                          <label className={fieldClass}><span className={labelClass}>Payment Transaction Reference</span><Input value={paymentReference} onChange={(event) => setPaymentReference(upper(event.target.value))} /></label>
                           <div className="max-w-[220px]">
                             <span className={labelClass}>Proof of Payment Screenshot</span>
                             <div className="mt-2">

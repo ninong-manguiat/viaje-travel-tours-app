@@ -76,7 +76,6 @@ export function DocumentUploadClient({ documentBin }: { documentBin: DocumentBin
           <CardContent className="grid gap-4">
             {!bin.requirements.length && <p className="text-sm text-viaje-soft">No documents are currently requested.</p>}
             {bin.requirements.map((requirement) => {
-              const latestUpload = requirement.uploads[requirement.uploads.length - 1];
               const canUpload = !isCancelled && requirement.status !== "APPROVED";
               return (
                 <div key={requirement.id} className="grid gap-3 rounded-[8px] border border-viaje-line bg-viaje-paper p-4 md:grid-cols-[1fr_auto] md:items-center">
@@ -87,10 +86,13 @@ export function DocumentUploadClient({ documentBin }: { documentBin: DocumentBin
                     </div>
                     <p className="mt-1 text-sm text-viaje-soft">Accepted: {requirement.acceptedFileTypes.join(", ")}</p>
                     <p className="text-sm text-viaje-soft">{requirement.uploadMode === "MULTIPLE" ? "Multiple files allowed" : "Single file required"}</p>
-                    {latestUpload && (
-                      <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                        <span className="text-viaje-soft">{latestUpload.originalFilename}</span>
-                        <a href={latestUpload.fileUrl} target="_blank" className="font-semibold text-viaje-red">View File</a>
+                    {requirement.uploads.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                        {requirement.uploads.map((upload, uploadIndex) => (
+                          <a key={upload.id} href={upload.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-full border border-viaje-line bg-white px-3 py-1.5 font-semibold text-viaje-red hover:bg-viaje-paperAlt">
+                            View File {requirement.uploads.length > 1 ? uploadIndex + 1 : ""}
+                          </a>
+                        ))}
                       </div>
                     )}
                   </div>

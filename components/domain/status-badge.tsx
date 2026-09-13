@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const good = ["paid", "approved", "accepted", "converted", "confirmed", "completed", "published", "active", "verified", "finalized"];
+const good = ["paid", "approved", "accepted", "converted", "confirmed", "completed", "published", "active", "verified", "finalized", "available"];
 const pending = ["submitted", "for_verification", "partially_paid", "under_review", "sent", "viewed", "reserved", "awaiting_payment", "processing", "limited", "pending", "pending_for_verification", "draft"];
 const danger = ["unpaid", "rejected", "refunded", "needs_replacement", "required", "expired", "cancelled", "sold_out"];
 

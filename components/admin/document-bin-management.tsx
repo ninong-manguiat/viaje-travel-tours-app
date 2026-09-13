@@ -94,12 +94,6 @@ function LinkedBookingLink({ bookingId, label }: { bookingId?: string; label?: s
   );
 }
 
-function openUploadedFiles(requirement: DocumentRequirement) {
-  requirement.uploads.forEach((upload) => {
-    if (upload.fileUrl) window.open(upload.fileUrl, "_blank", "noopener,noreferrer");
-  });
-}
-
 function RequirementEditor({
   requirements,
   onChange,
@@ -522,9 +516,13 @@ export function DocumentBinManagement() {
                             <TD><StatusBadge status={requirement.status} /></TD>
                             <TD>
                               {requirement.uploads.length ? (
-                                <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => openUploadedFiles(requirement)}>
-                                  <FileText className="h-3.5 w-3.5" />{requirement.uploads.length > 1 ? "View Files" : "View File"}
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                  {requirement.uploads.map((upload, uploadIndex) => (
+                                    <Button key={upload.id} type="button" size="sm" variant="outline" className="w-fit" onClick={() => window.open(upload.fileUrl, "_blank", "noopener,noreferrer")}>
+                                      <FileText className="h-3.5 w-3.5" />View File {requirement.uploads.length > 1 ? uploadIndex + 1 : ""}
+                                    </Button>
+                                  ))}
+                                </div>
                               ) : <span className="text-viaje-soft">Not yet uploaded</span>}
                             </TD>
                             <TD>{latestUpload?.uploadedAt ? formatDate(latestUpload.uploadedAt) : "N/A"}</TD>

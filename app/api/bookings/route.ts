@@ -18,6 +18,23 @@ function dateOnly(value?: string) {
   return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
 }
 
+function normalizeContactNumber(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("630")) return `+63${digits.slice(3, 13)}`;
+  if (digits.startsWith("63")) return `+${digits.slice(0, 12)}`;
+  if (digits.startsWith("0")) return `+63${digits.slice(1, 11)}`;
+  return `+63${digits.slice(0, 10)}`;
+}
+
+function isValidContactNumber(value: unknown) {
+  return /^\+639\d{9}$/.test(normalizeContactNumber(value));
+}
+
+function isValidEmail(value: unknown) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 function paymentAmounts(finalAmount: number, paymentOption: string) {
   if (paymentOption !== "downpayment_50") return { amountSubmitted: finalAmount, remainingBalance: 0 };
 
@@ -62,6 +79,21 @@ export async function POST(request: NextRequest) {
   const paymentOption = requestedPaymentOption;
   const { amountSubmitted, remainingBalance } = paymentAmounts(finalAmount, paymentOption);
   const schedule = paymentSchedule(finalAmount, paymentOption, selectedDeparture?.startDate);
+  const groupContact = body?.groupContact ?? {};
+  if (!String(groupContact.firstName || "").trim() || !String(groupContact.lastName || "").trim()) {
+    return NextResponse.json({ error: "Group contact name is required" }, { status: 400 });
+  }
+  if (!isValidContactNumber(groupContact.mobileNumber)) {
+    return NextResponse.json({ error: "Group contact mobile number must be a valid +63 mobile number" }, { status: 400 });
+  }
+  if (!isValidEmail(groupContact.emailAddress)) {
+    return NextResponse.json({ error: "Group contact email address must be valid" }, { status: 400 });
+  }
+  const normalizedGroupContact = {
+    ...groupContact,
+    mobileNumber: normalizeContactNumber(groupContact.mobileNumber),
+    emailAddress: String(groupContact.emailAddress || "").trim(),
+  };
   const bookingId = `booking-${Date.now()}`;
   const transactionId = `txn-${Date.now()}`;
   const paymentId = `pay-${Date.now()}`;
@@ -100,7 +132,7 @@ export async function POST(request: NextRequest) {
     balance: remainingBalance,
     source: "website",
     guests: body?.guests ?? [],
-    groupContact: body?.groupContact ?? {},
+    groupContact: normalizedGroupContact,
     paymentOption,
     paymentType: paymentOption === "downpayment_50" ? "50% Downpayment" : "Full Payment",
     paymentInfo: {
