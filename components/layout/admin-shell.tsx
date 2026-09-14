@@ -7,23 +7,18 @@ import { BookOpen, Calculator, CreditCard, FileText, LayoutDashboard, Menu, Pack
 
 const groups = [
   {
-    label: "DONE",
+    label: "VIAJE ADMIN | admin@viaje.com",
     items: [
       { href: "/admin/website-content", label: "Website Content", icon: PanelsTopLeft },
       { href: "/admin/packages", label: "Packages", icon: Package },
       { href: "/admin/payment-management", label: "Payment Management", icon: WalletCards },
       { href: "/admin/documents", label: "Documents", icon: FileText },
       { href: "/admin/quotations", label: "Quotation Builder", icon: Calculator },
-    ],
-  },
-  {
-    label: "ON GOING",
-    items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/payments/verification", label: "Payments", icon: CreditCard },
       { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
     ],
-  },
+  }
 ] satisfies Array<{ label: string; items: Array<{ href: Route; label: string; icon: typeof LayoutDashboard }> }>;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

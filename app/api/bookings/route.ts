@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getPackageById } from "@/lib/package-data";
+import { emailTemplateSubjects } from "@/lib/email-templates";
+import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
+import { formatDate, formatPeso } from "@/lib/utils";
 
 function referenceNumber() {
   const date = new Date();
@@ -33,6 +36,29 @@ function isValidContactNumber(value: unknown) {
 
 function isValidEmail(value: unknown) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function appUrl(request: NextRequest, path = "") {
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`).replace(/\/+$/, "");
+  return `${baseUrl}/${path.replace(/^\/+/, "")}`;
+}
+
+function dateLabel(value?: string) {
+  if (!value) return "To be advised";
+  return formatDate(value);
+}
+
+function itineraryContent(pkg: Awaited<ReturnType<typeof getPackageById>>) {
+  if (!pkg?.itinerary?.length) return "";
+
+  return pkg.itinerary
+    .map((item) => {
+      const title = [item.day, item.name].filter(Boolean).join(": ");
+      const activities = item.activities.map((activity) => activity.activity).filter(Boolean).join(", ");
+      return [title, activities].filter(Boolean).join(" - ");
+    })
+    .filter(Boolean)
+    .join("; ");
 }
 
 function paymentAmounts(finalAmount: number, paymentOption: string) {
@@ -200,5 +226,34 @@ export async function POST(request: NextRequest) {
     throw error;
   }
 
-  return NextResponse.json({ booking: { ...booking, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, transaction, payment });
+  const paymentMethodDoc = booking.paymentInfo.method
+    ? await adminDb.collection("paymentMethods").doc(String(booking.paymentInfo.method)).get().catch(() => null)
+    : null;
+  const paymentMethodName = String(paymentMethodDoc?.data()?.bank || booking.paymentInfo.method || "To be verified");
+  const emailResult = await sendBookingReceivedEmail({
+    firstName: String(booking.groupContact.firstName || "there"),
+    bookingReference: reference,
+    packageName: pkg.title,
+    departureDate: selectedDeparture ? `${dateLabel(selectedDeparture.startDate)} - ${dateLabel(selectedDeparture.endDate)}` : "To be advised",
+    guestCount: Array.isArray(booking.guests) ? booking.guests.length : pax,
+    totalAmount: formatPeso(finalAmount),
+    paymentAmount: formatPeso(amountSubmitted),
+    remainingBalance: formatPeso(remainingBalance),
+    paymentMethod: paymentMethodName,
+    itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
+    bookingUrl: appUrl(request, `/dashboard/bookings/${encodeURIComponent(reference)}`),
+  }, {
+    recipient: String(booking.groupContact.emailAddress || ""),
+    subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,
+    relatedEntityType: "booking",
+    relatedEntityId: bookingId,
+    relatedReference: reference,
+  }).catch((error) => ({ ok: false as const, error: error instanceof Error ? error.message : "Unable to send booking received email." }));
+
+  return NextResponse.json({
+    booking: { ...booking, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    transaction,
+    payment,
+    email: emailResult.ok ? { attempted: true, sent: true } : { attempted: true, sent: false },
+  });
 }

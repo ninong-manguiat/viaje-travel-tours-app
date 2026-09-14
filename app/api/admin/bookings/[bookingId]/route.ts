@@ -79,6 +79,23 @@ function serializeBooking(id: string, data: FirebaseFirestore.DocumentData) {
   };
 }
 
+function serializePaymentLog(id: string, data: FirebaseFirestore.DocumentData) {
+  return {
+    id,
+    bookingId: String(data.bookingId || ""),
+    paymentScheduleId: String(data.paymentScheduleId || data.scheduleItemId || ""),
+    paymentName: String(data.paymentName || data.label || ""),
+    method: String(data.method || ""),
+    referenceNumber: String(data.referenceNumber || ""),
+    amountExpected: Number(data.amountExpected || 0),
+    amountSubmitted: Number(data.amountSubmitted || 0),
+    receiptUrl: String(data.receiptUrl || ""),
+    paymentDate: String(data.paymentDate || ""),
+    status: String(data.status || ""),
+    createdAt: timestampValue(data.createdAt),
+  };
+}
+
 async function deleteDocumentBinFiles(bin: ReturnType<typeof serializeDocumentBin>) {
   await Promise.all(bin.requirements.flatMap((requirement) =>
     requirement.uploads
@@ -93,8 +110,10 @@ export async function GET(request: NextRequest, { params }: { params: { bookingI
   const { adminDb } = await import("@/lib/firebase-admin");
   const snapshot = await adminDb.collection("bookings").doc(params.bookingId).get();
   if (!snapshot.exists) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  const paymentSnapshot = await adminDb.collection("payments").where("bookingId", "==", params.bookingId).get();
+  const paymentLogs = paymentSnapshot.docs.map((doc) => serializePaymentLog(doc.id, doc.data()));
 
-  return NextResponse.json({ booking: serializeBooking(snapshot.id, snapshot.data() ?? {}) });
+  return NextResponse.json({ booking: { ...serializeBooking(snapshot.id, snapshot.data() ?? {}), paymentLogs } });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { bookingId: string } }) {

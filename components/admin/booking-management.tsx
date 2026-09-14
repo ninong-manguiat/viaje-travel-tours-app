@@ -19,6 +19,21 @@ type PaymentScheduleItem = {
   status: string;
 };
 
+type BookingPaymentLog = {
+  id: string;
+  bookingId?: string;
+  paymentScheduleId?: string;
+  paymentName?: string;
+  method?: string;
+  referenceNumber?: string;
+  amountExpected?: number;
+  amountSubmitted?: number;
+  receiptUrl?: string;
+  paymentDate?: string;
+  status?: string;
+  createdAt?: string;
+};
+
 type AdminBooking = {
   id: string;
   reference?: string;
@@ -56,6 +71,7 @@ type AdminBooking = {
     paymentDate?: string;
   };
   paymentSchedule?: PaymentScheduleItem[];
+  paymentLogs?: BookingPaymentLog[];
   bookingSelections?: {
     pax?: number;
     baseAmount?: number;
@@ -130,6 +146,30 @@ function scheduleFor(booking: AdminBooking) {
 
 function paidFromSchedule(schedule: PaymentScheduleItem[]) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(item.status.toLowerCase()) ? sum + Number(item.amount || 0) : sum, 0);
+}
+
+function paymentProofForScheduleItem(item: PaymentScheduleItem, paymentLogs: BookingPaymentLog[] = []) {
+  if (item.status.toLowerCase() !== "for_verification") return null;
+
+  const candidates = paymentLogs.filter((payment) =>
+    payment.receiptUrl &&
+    String(payment.status || "").toLowerCase() === "for_verification"
+  );
+  const exactById = candidates.find((payment) => payment.paymentScheduleId === item.id);
+  if (exactById) return exactById;
+
+  const exactByName = candidates.find((payment) =>
+    payment.paymentName?.trim().toLowerCase() === item.label.trim().toLowerCase()
+  );
+  if (exactByName) return exactByName;
+
+  const amountMatches = candidates.filter((payment) =>
+    Number(payment.amountExpected || payment.amountSubmitted || 0) === Number(item.amount || 0)
+  );
+  if (["downpayment", "full-payment"].includes(item.id) && amountMatches.length) return amountMatches[0];
+  if (amountMatches.length === 1) return amountMatches[0];
+
+  return null;
 }
 
 function bookingEditDraft(booking: AdminBooking): BookingEditDraft {
@@ -240,6 +280,10 @@ export function BookingManagement() {
     const url = new URL(window.location.href);
     url.searchParams.set("bookingId", booking.id);
     window.history.pushState(null, "", url.toString());
+    fetch(`/api/admin/bookings/${encodeURIComponent(booking.id)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load booking")))
+      .then((data) => setSelected(data.booking))
+      .catch(() => setStatus("Unable to load booking payment details."));
   }
 
   function closeBooking() {
@@ -501,7 +545,7 @@ export function BookingManagement() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 lg:col-span-2 lg:grid-cols-2 pt-5 pl-5 pr-5">
+            <div className="grid min-w-0 grid-cols-1 gap-5 pt-5 pl-5 pr-5 lg:col-span-2 lg:grid-cols-[3fr_2fr]">
 
             {/* =========================================================
                 PACKAGE / BOOKING INFORMATION — 100%
@@ -587,82 +631,105 @@ export function BookingManagement() {
 
 
             {/* =========================================================
-                PAYMENT SCHEDULE — 50%
+                PAYMENT SCHEDULE — 60%
             ========================================================= */}
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle>Payment Schedule</CardTitle>
               </CardHeader>
 
               <CardContent className="space-y-5">
-                <Table>
-                  <THead>
-                    <TR>
-                      <TH>Payment</TH>
-                      <TH>Amount</TH>
-                      <TH>Due Date</TH>
-                      <TH>Status</TH>
-                    </TR>
-                  </THead>
-
-                  <TBody>
-                    {selectedSchedule.map((item) => (
-                      <TR key={item.id}>
-                        <TD>{item.label}</TD>
-
-                        <TD>
-                          {formatPeso(Number(item.amount || 0))}
-                        </TD>
-
-                        <TD>{dateLabel(item.dueDate)}</TD>
-
-                        <TD>
-                          <select
-                            value={item.status}
-                            onChange={(event) =>
-                              updateScheduleStatus(
-                                item.id,
-                                event.target.value
-                              )
-                            }
-                            className="h-10 rounded-[8px] border border-viaje-line bg-white px-3 text-sm text-viaje-ink"
-                          >
-                            {paymentStatusOptions.map((option) => (
-                              <option
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-
-                          {!["verified", "paid"].includes(
-                            item.status.toLowerCase()
-                          ) && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="mt-2"
-                              onClick={() =>
-                                setStatus(
-                                  `Payment link UI ready for ${item.label}.`
-                                )
-                              }
-                            >
-                              <LinkIcon className="h-3.5 w-3.5" />
-                              Send Payment Link
-                            </Button>
-                          )}
-                        </TD>
+                <div className="min-w-0 overflow-x-auto">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>Payment</TH>
+                        <TH>Amount</TH>
+                        <TH>Due Date</TH>
+                        <TH>Status</TH>
                       </TR>
-                    ))}
-                  </TBody>
-                </Table>
+                    </THead>
 
-                <div className="grid gap-3 rounded-[8px] border border-viaje-line bg-viaje-paper p-4 md:grid-cols-[1fr_140px_150px] xl:grid-cols-[1fr_140px_150px_auto]">
+                    <TBody>
+                      {selectedSchedule.map((item) => {
+                        const proofPayment = paymentProofForScheduleItem(item, selected.paymentLogs);
+                        const isForVerification = item.status.toLowerCase() === "for_verification";
+
+                        return (
+                          <TR key={item.id}>
+                            <TD>{item.label}</TD>
+
+                            <TD>
+                              {formatPeso(Number(item.amount || 0))}
+                            </TD>
+
+                            <TD>{dateLabel(item.dueDate)}</TD>
+
+                            <TD>
+                              <select
+                                value={item.status}
+                                onChange={(event) =>
+                                  updateScheduleStatus(
+                                    item.id,
+                                    event.target.value
+                                  )
+                                }
+                                className="h-10 rounded-[8px] border border-viaje-line bg-white px-3 text-sm text-viaje-ink"
+                              >
+                                {paymentStatusOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {isForVerification ? (
+                                proofPayment?.receiptUrl ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="mt-2"
+                                    onClick={() => window.open(proofPayment.receiptUrl, "_blank", "noopener,noreferrer")}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    View Proof of Payment
+                                  </Button>
+                                ) : (
+                                  <p className="mt-2 text-xs font-medium text-viaje-soft">Proof not available</p>
+                                )
+                              ) : !["verified", "paid"].includes(
+                                item.status.toLowerCase()
+                              ) && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-2"
+                                  onClick={() =>
+                                    setStatus(
+                                      `Payment link UI ready for ${item.label}.`
+                                    )
+                                  }
+                                >
+                                  <LinkIcon className="h-3.5 w-3.5" />
+                                  Send Payment Link
+                                </Button>
+                              )}
+                            </TD>
+                          </TR>
+                        );
+                      })}
+                    </TBody>
+                  </Table>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-1 gap-3 rounded-[8px] border border-viaje-line bg-viaje-paper p-4 md:grid-cols-2">
                   <Input
+                    className="min-w-0"
                     placeholder="Payment Name"
                     value={newPayment.label}
                     onChange={(event) =>
@@ -674,6 +741,7 @@ export function BookingManagement() {
                   />
 
                   <Input
+                    className="min-w-0"
                     type="number"
                     min="0"
                     placeholder="Amount"
@@ -687,6 +755,7 @@ export function BookingManagement() {
                   />
 
                   <Input
+                    className="min-w-0"
                     type="date"
                     value={newPayment.dueDate}
                     onChange={(event) =>
@@ -699,6 +768,7 @@ export function BookingManagement() {
 
                   <Button
                     type="button"
+                    className="w-full"
                     onClick={addPaymentSchedule}
                   >
                     <Plus className="h-4 w-4" />
@@ -710,9 +780,9 @@ export function BookingManagement() {
 
 
             {/* =========================================================
-                PAYMENT SUMMARY — 50%
+                PAYMENT SUMMARY — 40%
             ========================================================= */}
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle>Payment Summary</CardTitle>
               </CardHeader>
