@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useState } from "react";
 import { BookOpen, Calculator, CreditCard, FileText, LayoutDashboard, Menu, Package, PanelsTopLeft, ChevronLeft, WalletCards } from "lucide-react";
+import { NewBookingNotificationListener } from "@/components/admin/new-booking-notification-listener";
 
 const groups = [
   {
@@ -26,6 +27,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`min-h-screen bg-viaje-paper lg:grid ${open ? "lg:grid-cols-[230px_1fr]" : "lg:grid-cols-[72px_1fr]"}`}>
+      <NewBookingNotificationListener />
       <aside className={`fixed inset-y-0 left-0 z-40 h-screen bg-viaje-navy px-4 py-5 text-white/75 transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${open ? "w-[230px] translate-x-0" : "w-[72px] -translate-x-full lg:translate-x-0"}`}>
         <div className="mb-6 flex items-center justify-between gap-2 px-1 pb-4">
           <button type="button" onClick={() => setOpen((current) => !current)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:bg-white/10 hover:text-white" aria-label={open ? "Collapse sidebar" : "Open sidebar"}>
