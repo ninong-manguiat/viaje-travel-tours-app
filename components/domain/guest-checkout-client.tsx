@@ -555,22 +555,22 @@ export function GuestCheckoutClient({
               </div>
             )}
 
-            <div className="flex flex-wrap justify-between gap-3">
+            <div className="grid gap-3 sm:flex sm:flex-wrap sm:justify-between">
               {step === "payment" ? (
-                <Button type="button" variant="outline" onClick={() => goToStep("guests")}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => goToStep("guests")}>
                   <ArrowLeft className="h-4 w-4" /> Back
                 </Button>
               ) : (
                 <a href={changeDetailsHref}>
-                  <Button variant="outline" className="w-fit">Change Booking Details</Button>
+                  <Button variant="outline" className="w-full sm:w-auto">Change Booking Details</Button>
                 </a>
               )}
               {step === "guests" ? (
-                <Button onClick={continueToPayment} disabled={saveState === "saving"}>
+                <Button className="w-full sm:w-auto" onClick={continueToPayment} disabled={saveState === "saving"}>
                   {saveState === "saving" ? "Saving..." : "Continue to Payment"}
                 </Button>
               ) : (
-                <Button onClick={submit} disabled={submitting || !paymentProofUrl || !selectedPaymentMethod}>
+                <Button className="w-full sm:w-auto" onClick={submit} disabled={submitting || !paymentProofUrl || !selectedPaymentMethod}>
                   {submitting ? "Submitting..." : "Submit for Verification"}
                 </Button>
               )}

@@ -29,7 +29,6 @@ const fieldClass = "grid gap-1.5";
 
 export function QuotationPaymentClient({ quotation, paymentMethods, token }: { quotation: Quotation; paymentMethods: PaymentMethod[]; token: string }) {
   const [paymentMethodId, setPaymentMethodId] = useState(paymentMethods[0]?.id ?? "");
-  const [referenceNumber, setReferenceNumber] = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("");
@@ -39,8 +38,8 @@ export function QuotationPaymentClient({ quotation, paymentMethods, token }: { q
   const selectedPaymentMethod = useMemo(() => paymentMethods.find((method) => method.id === paymentMethodId) ?? null, [paymentMethodId, paymentMethods]);
 
   async function submitPayment() {
-    if (!selectedPaymentMethod || !referenceNumber.trim() || !receiptUrl) {
-      setStatus("Payment method, transaction reference, and proof of payment are required.");
+    if (!selectedPaymentMethod || !receiptUrl) {
+      setStatus("Payment method and proof of payment are required.");
       return;
     }
 
@@ -52,7 +51,6 @@ export function QuotationPaymentClient({ quotation, paymentMethods, token }: { q
         paymentMethodId: selectedPaymentMethod.id,
         paymentMethodBank: selectedPaymentMethod.bank,
         paymentMethodReferenceNumber: selectedPaymentMethod.referenceNumber,
-        referenceNumber,
         receiptUrl,
         notes,
       }),
@@ -126,7 +124,6 @@ export function QuotationPaymentClient({ quotation, paymentMethods, token }: { q
                             <p className="font-semibold text-viaje-navy">{selectedPaymentMethod.bank}</p>
                             <p className="mt-1 text-viaje-soft">Reference Number: <strong className="text-viaje-navy">{selectedPaymentMethod.referenceNumber}</strong></p>
                           </div>
-                          <label className={fieldClass}><span className={labelClass}>Payment Transaction Reference</span><Input value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value.toUpperCase())} /></label>
                           <label className={fieldClass}><span className={labelClass}>Notes</span><Input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
                         </div>
                       </div>

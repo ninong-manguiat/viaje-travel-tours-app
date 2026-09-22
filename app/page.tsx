@@ -366,11 +366,11 @@ export default async function HomePage() {
           <p className="eyebrow">{websiteContent.accreditation.sectionDescription}</p>
           <h2 className="mt-3 text-3xl font-medium text-viaje-navy">{websiteContent.accreditation.sectionDescriptionSubs}</h2>
         </div>
-        <div className="flex flex-wrap gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:flex lg:flex-wrap">
           {websiteContent.accreditation.accreditations.map((item) => (
             <Card key={item.name} className="rounded-[8px]">
-              <CardContent className="flex items-center gap-4 p-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-viaje-paper">
+              <CardContent className="flex items-center gap-4 p-5 lg:p-4">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-viaje-paper lg:h-16 lg:w-16 lg:rounded-[8px]">
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.name} className="h-full w-full object-contain" />
                   ) : (
@@ -378,7 +378,7 @@ export default async function HomePage() {
                   )}
                 </span>
                 <div>
-                  <h3 className="font-serif text-lg font-semibold text-viaje-navy">{item.name}</h3>
+                  <h3 className="font-serif text-xl font-semibold text-viaje-navy lg:text-lg">{item.name}</h3>
                   <p className="mt-1 text-xs text-viaje-soft">{item.subtitle}</p>
                 </div>
               </CardContent>

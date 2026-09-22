@@ -18,8 +18,8 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
   const referenceNumber = String(body?.referenceNumber || "").trim();
   const receiptUrl = String(body?.receiptUrl || "").trim();
 
-  if (!paymentMethodId || !paymentMethodBank || !referenceNumber || !receiptUrl) {
-    return NextResponse.json({ error: "Payment method, transaction reference, and proof of payment are required." }, { status: 400 });
+  if (!paymentMethodId || !paymentMethodBank || !receiptUrl) {
+    return NextResponse.json({ error: "Payment method and proof of payment are required." }, { status: 400 });
   }
 
   const { adminDb } = await import("@/lib/firebase-admin");
