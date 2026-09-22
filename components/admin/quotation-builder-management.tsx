@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ExternalLink, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 const itemTypes = [
@@ -58,7 +59,7 @@ const emptyQuotation: Quotation = {
   publicToken: "",
   clientName: "",
   email: "",
-  contactNumber: "",
+  contactNumber: "+63",
   status: "DRAFT",
   totalAmount: 0,
   paymentToken: "",
@@ -73,6 +74,9 @@ const emptyQuotation: Quotation = {
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
 const fieldClass = "grid gap-1.5";
 const inputClass = "h-12 rounded-[10px] border border-viaje-line bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-viaje-red/20";
+type QuotationErrors = Partial<Record<"clientName" | "email" | "contactNumber" | "items", string>> & {
+  itemErrors: Array<Partial<Record<"customName" | "remarks" | "amount", string>>>;
+};
 
 function newItem(sortOrder: number): QuotationItem {
   return {
@@ -105,6 +109,7 @@ export function QuotationBuilderManagement() {
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState("");
   const [status, setStatus] = useState("");
+  const [modalError, setModalError] = useState("");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -129,11 +134,13 @@ export function QuotationBuilderManagement() {
 
   function startCreate() {
     setStatus("");
+    setModalError("");
     setEditing({ ...emptyQuotation, items: [newItem(0)] });
   }
 
   async function startEdit(quotation: Quotation) {
     setStatus("");
+    setModalError("");
     const response = await fetch(`/api/admin/quotations/${quotation.id}`);
     if (!response.ok) {
       setStatus("Unable to load quotation details.");
@@ -141,6 +148,11 @@ export function QuotationBuilderManagement() {
     }
     const data = await response.json();
     setEditing(data.quotation);
+  }
+
+  function closeModal() {
+    setEditing(null);
+    setModalError("");
   }
 
   function updateEditing(values: Partial<Quotation>) {
@@ -162,9 +174,40 @@ export function QuotationBuilderManagement() {
     setEditing((current) => current ? { ...current, items: current.items.filter((_, itemIndex) => itemIndex !== index).map((item, sortOrder) => ({ ...item, sortOrder })) } : current);
   }
 
+  function validateQuotationForm(quotation: Quotation | null): QuotationErrors {
+    const errors: QuotationErrors = { itemErrors: [] };
+    if (!quotation) return errors;
+    const email = quotation.email.trim();
+
+    if (!quotation.clientName.trim()) errors.clientName = "Client name is required.";
+    if (!email) errors.email = "Email address is required.";
+    else if (!emailPattern.test(email)) errors.email = "Enter a valid email address.";
+    if (!quotation.contactNumber.trim()) errors.contactNumber = "Contact number is required.";
+    else if (!isValidContactNumber(quotation.contactNumber)) errors.contactNumber = "Enter a valid +63 mobile number.";
+    if (!quotation.items.length) errors.items = "At least one quotation item is required.";
+
+    errors.itemErrors = quotation.items.map((item) => {
+      const itemErrors: Partial<Record<"customName" | "remarks" | "amount", string>> = {};
+      if (item.type === "Other" && !item.customName.trim()) itemErrors.customName = "Custom item name is required.";
+      if (!item.remarks.trim()) itemErrors.remarks = "Remarks are required.";
+      if (Number(item.amount || 0) <= 0) itemErrors.amount = "Amount must be greater than zero.";
+      return itemErrors;
+    });
+
+    return errors;
+  }
+
+  const quotationErrors = useMemo(() => validateQuotationForm(editing), [editing]);
+  const quotationInvalid = Object.entries(quotationErrors).some(([key, value]) => {
+    if (key === "itemErrors") return quotationErrors.itemErrors.some((item) => Object.values(item).some(Boolean));
+    return Boolean(value);
+  });
+
   async function saveQuotation() {
     if (!editing) return;
+    if (quotationInvalid) return;
 
+    setModalError("");
     setSaving(true);
     const isNew = !editing.id;
     const response = await fetch(isNew ? "/api/admin/quotations" : `/api/admin/quotations/${editing.id}`, {
@@ -176,7 +219,7 @@ export function QuotationBuilderManagement() {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setStatus(data?.error ?? "Unable to save quotation.");
+      setModalError(data?.error ?? "Unable to save quotation.");
       return;
     }
 
@@ -184,7 +227,7 @@ export function QuotationBuilderManagement() {
       if (isNew) return [data.quotation, ...current];
       return current.map((quotation) => quotation.id === data.quotation.id ? data.quotation : quotation);
     });
-    setEditing(null);
+    closeModal();
     setStatus("Quotation saved.");
   }
 
@@ -249,63 +292,6 @@ export function QuotationBuilderManagement() {
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
 
-      {editing && (
-        <Card>
-          <CardHeader><CardTitle>{editing.id ? `Edit ${editing.referenceNumber}` : "Create Quotation"}</CardTitle></CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className={fieldClass}><span className={labelClass}>Client Name</span><Input required value={editing.clientName} onChange={(event) => updateEditing({ clientName: event.target.value })} /></label>
-              <label className={fieldClass}><span className={labelClass}>Email</span><Input required type="email" value={editing.email} onChange={(event) => updateEditing({ email: event.target.value })} /></label>
-              <label className={fieldClass}><span className={labelClass}>Contact Number</span><Input required value={editing.contactNumber} onChange={(event) => updateEditing({ contactNumber: event.target.value })} /></label>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-serif text-xl font-semibold text-viaje-navy">Quotation Items</h3>
-                <Button type="button" variant="outline" size="sm" onClick={() => updateEditing({ items: [...editing.items, newItem(editing.items.length)] })}>
-                  <Plus className="h-3.5 w-3.5" />Add Quotation Item
-                </Button>
-              </div>
-              {editing.items.map((item, index) => (
-                <div key={item.id} className="grid gap-3 rounded-[10px] border border-viaje-line bg-viaje-paper p-4 lg:grid-cols-[180px_1fr_140px_40px]">
-                  <label className={fieldClass}>
-                    <span className={labelClass}>Service / Item Type</span>
-                    <select value={item.type} onChange={(event) => updateItem(index, { type: event.target.value as QuotationItemType })} className={inputClass}>
-                      {itemTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                  </label>
-                  <label className={fieldClass}>
-                    <span className={labelClass}>{item.type === "Other" ? "Custom Item Name" : "Remarks"}</span>
-                    <Input value={item.type === "Other" ? item.customName : item.remarks} onChange={(event) => updateItem(index, item.type === "Other" ? { customName: event.target.value } : { remarks: event.target.value })} />
-                  </label>
-                  <label className={fieldClass}>
-                    <span className={labelClass}>Amount</span>
-                    <Input type="number" min="0" step="1" value={item.amount || ""} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
-                  </label>
-                  <button type="button" onClick={() => removeItem(index)} className="mt-6 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                  {item.type === "Other" && (
-                    <label className={`${fieldClass} lg:col-span-4`}>
-                      <span className={labelClass}>Remarks</span>
-                      <Input value={item.remarks} onChange={(event) => updateItem(index, { remarks: event.target.value })} />
-                    </label>
-                  )}
-                </div>
-              ))}
-              <div className="flex justify-end rounded-[10px] border border-viaje-line bg-white p-4 text-lg font-bold text-viaje-navy">
-                Grand Total: {formatPeso(editingTotal)}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={saveQuotation} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Quotation"}</Button>
-              <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle>Saved Quotations</CardTitle>
@@ -358,6 +344,97 @@ export function QuotationBuilderManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[8px] bg-white shadow-[0_28px_80px_-30px_rgba(0,0,0,0.65)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-viaje-line bg-white px-5 py-4">
+              <h2 className="font-serif text-2xl font-semibold text-viaje-navy">{editing.id ? `Edit ${editing.referenceNumber}` : "Create Quotation"}</h2>
+              <Button type="button" variant="outline" size="icon" onClick={closeModal} aria-label="Close quotation modal"><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="grid gap-6 p-5">
+              <Card>
+                <CardHeader><CardTitle>Client Information</CardTitle></CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-3">
+                  <label className={fieldClass}>
+                    <span className={labelClass}>Client Name</span>
+                    <Input required value={editing.clientName} onChange={(event) => updateEditing({ clientName: event.target.value })} />
+                    {quotationErrors.clientName && <span className="text-xs font-medium text-viaje-red">{quotationErrors.clientName}</span>}
+                  </label>
+                  <label className={fieldClass}>
+                    <span className={labelClass}>Email</span>
+                    <Input required type="email" value={editing.email} onChange={(event) => updateEditing({ email: event.target.value })} />
+                    {quotationErrors.email && <span className="text-xs font-medium text-viaje-red">{quotationErrors.email}</span>}
+                  </label>
+                  <label className={fieldClass}>
+                    <span className={labelClass}>Contact Number</span>
+                    <Input required value={editing.contactNumber || "+63"} onChange={(event) => updateEditing({ contactNumber: normalizeContactNumber(event.target.value) })} />
+                    {quotationErrors.contactNumber && <span className="text-xs font-medium text-viaje-red">{quotationErrors.contactNumber}</span>}
+                  </label>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
+                  <CardTitle>Quotation Items</CardTitle>
+                  <Button type="button" variant="outline" size="sm" onClick={() => updateEditing({ items: [...editing.items, newItem(editing.items.length)] })}>
+                    <Plus className="h-3.5 w-3.5" />Add Quotation Item
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {quotationErrors.items && <p className="text-sm font-medium text-viaje-red">{quotationErrors.items}</p>}
+                  {editing.items.map((item, index) => {
+                    const itemErrors = quotationErrors.itemErrors[index] ?? {};
+                    return (
+                      <div key={item.id} className="grid gap-4 rounded-[10px] border border-viaje-line bg-viaje-paper p-4 lg:grid-cols-[180px_1fr_140px_40px]">
+                        <label className={fieldClass}>
+                          <span className={labelClass}>Service / Item Type</span>
+                          <select value={item.type} onChange={(event) => updateItem(index, { type: event.target.value as QuotationItemType })} className={inputClass}>
+                            {itemTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </label>
+                        <label className={fieldClass}>
+                          <span className={labelClass}>{item.type === "Other" ? "Custom Item Name" : "Remarks"}</span>
+                          <Input value={item.type === "Other" ? item.customName : item.remarks} onChange={(event) => updateItem(index, item.type === "Other" ? { customName: event.target.value } : { remarks: event.target.value })} />
+                          {item.type === "Other" ? (
+                            itemErrors.customName && <span className="text-xs font-medium text-viaje-red">{itemErrors.customName}</span>
+                          ) : (
+                            itemErrors.remarks && <span className="text-xs font-medium text-viaje-red">{itemErrors.remarks}</span>
+                          )}
+                        </label>
+                        <label className={fieldClass}>
+                          <span className={labelClass}>Amount</span>
+                          <Input type="number" min="0" step="1" value={item.amount || ""} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
+                          {itemErrors.amount && <span className="text-xs font-medium text-viaje-red">{itemErrors.amount}</span>}
+                        </label>
+                        <button type="button" onClick={() => removeItem(index)} className="mt-6 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        {item.type === "Other" && (
+                          <label className={`${fieldClass} lg:col-span-4`}>
+                            <span className={labelClass}>Remarks</span>
+                            <Input value={item.remarks} onChange={(event) => updateItem(index, { remarks: event.target.value })} />
+                            {itemErrors.remarks && <span className="text-xs font-medium text-viaje-red">{itemErrors.remarks}</span>}
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-end rounded-[10px] border border-viaje-line bg-white p-4 text-lg font-bold text-viaje-navy">
+                    Grand Total: {formatPeso(editingTotal)}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {modalError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{modalError}</p>}
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+                <Button type="button" onClick={saveQuotation} disabled={saving || quotationInvalid}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Quotation"}</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

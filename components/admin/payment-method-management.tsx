@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ const emptyPaymentMethod: PaymentMethod = {
 
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
+type PaymentMethodErrors = Partial<Record<"bank" | "referenceNumber" | "qrImageUrl", string>>;
 
 export function PaymentMethodManagement() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -25,6 +26,7 @@ export function PaymentMethodManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [modalError, setModalError] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/payment-methods")
@@ -36,17 +38,33 @@ export function PaymentMethodManagement() {
 
   function startCreate() {
     setStatus("");
-    setEditing(emptyPaymentMethod);
+    setModalError("");
+    setEditing({ ...emptyPaymentMethod });
   }
+
+  function closeModal() {
+    setEditing(null);
+    setModalError("");
+  }
+
+  function validatePaymentMethodForm(method: PaymentMethod | null) {
+    const errors: PaymentMethodErrors = {};
+    if (!method) return errors;
+    if (!method.bank.trim()) errors.bank = "Bank is required.";
+    if (!method.referenceNumber.trim()) errors.referenceNumber = "Reference number is required.";
+    if (!method.qrImageUrl.trim()) errors.qrImageUrl = "QR image is required.";
+    return errors;
+  }
+
+  const paymentMethodErrors = useMemo(() => validatePaymentMethodForm(editing), [editing]);
+  const paymentMethodInvalid = Object.values(paymentMethodErrors).some(Boolean);
 
   async function savePaymentMethod() {
     if (!editing) return;
 
-    if (!editing.bank.trim() || !editing.referenceNumber.trim() || !editing.qrImageUrl.trim()) {
-      setStatus("Bank, reference number, and QR image are required.");
-      return;
-    }
+    if (paymentMethodInvalid) return;
 
+    setModalError("");
     setSaving(true);
     const isNew = !editing.id;
     const response = await fetch(isNew ? "/api/admin/payment-methods" : `/api/admin/payment-methods/${editing.id}`, {
@@ -58,7 +76,7 @@ export function PaymentMethodManagement() {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data?.error ?? "Unable to save payment method.");
+      setModalError(data?.error ?? "Unable to save payment method.");
       return;
     }
 
@@ -67,7 +85,7 @@ export function PaymentMethodManagement() {
       if (isNew) return [...current, data.paymentMethod].sort((a, b) => a.bank.localeCompare(b.bank));
       return current.map((method) => method.id === data.paymentMethod.id ? data.paymentMethod : method);
     });
-    setEditing(null);
+    closeModal();
     setStatus("Payment method saved.");
   }
 
@@ -99,34 +117,6 @@ export function PaymentMethodManagement() {
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
 
-      {editing && (
-        <Card>
-          <CardHeader><CardTitle>{editing.id ? "Edit Payment Method" : "New Payment Method"}</CardTitle></CardHeader>
-          <CardContent className="grid gap-5 md:grid-cols-[1fr_180px]">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className={fieldClass}>
-                <span className={labelClass}>Bank</span>
-                <Input required value={editing.bank} onChange={(event) => updateEditing({ bank: event.target.value })} />
-              </label>
-              <label className={fieldClass}>
-                <span className={labelClass}>Reference Number</span>
-                <Input required value={editing.referenceNumber} onChange={(event) => updateEditing({ referenceNumber: event.target.value })} />
-              </label>
-              <div className="flex flex-wrap gap-3 md:col-span-2">
-                <Button type="button" onClick={savePaymentMethod} disabled={saving}>{saving ? "Saving..." : "Save Payment Method"}</Button>
-                <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-              </div>
-            </div>
-            <div>
-              <span className={labelClass}>QR Image</span>
-              <div className="mt-2">
-                <PackageMediaField label="QR Image" folder="payment-methods" value={editing.qrImageUrl} onUploaded={(qrImageUrl) => updateEditing({ qrImageUrl })} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardHeader><CardTitle>Payment Methods</CardTitle></CardHeader>
         <CardContent>
@@ -152,7 +142,7 @@ export function PaymentMethodManagement() {
                   </TD>
                   <TD>
                     <div className="flex justify-end gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => setEditing(paymentMethod)}>
+                      <Button type="button" size="sm" variant="outline" onClick={() => { setModalError(""); setEditing(paymentMethod); }}>
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
                       <Button type="button" size="sm" variant="ghost" className="text-viaje-red" onClick={() => removePaymentMethod(paymentMethod)} aria-label={`Delete ${paymentMethod.bank}`}>
@@ -166,6 +156,48 @@ export function PaymentMethodManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[8px] bg-white shadow-[0_28px_80px_-30px_rgba(0,0,0,0.65)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-viaje-line bg-white px-5 py-4">
+              <h2 className="font-serif text-2xl font-semibold text-viaje-navy">{editing.id ? "Edit Payment Method" : "New Payment Method"}</h2>
+              <Button type="button" variant="outline" size="icon" onClick={closeModal} aria-label="Close payment method modal"><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="grid gap-6 p-5">
+              <Card>
+                <CardHeader><CardTitle>Payment Method Details</CardTitle></CardHeader>
+                <CardContent className="grid gap-5 md:grid-cols-[1fr_180px]">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className={fieldClass}>
+                      <span className={labelClass}>Bank</span>
+                      <Input required value={editing.bank} onChange={(event) => updateEditing({ bank: event.target.value })} />
+                      {paymentMethodErrors.bank && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.bank}</span>}
+                    </label>
+                    <label className={fieldClass}>
+                      <span className={labelClass}>Reference Number</span>
+                      <Input required value={editing.referenceNumber} onChange={(event) => updateEditing({ referenceNumber: event.target.value })} />
+                      {paymentMethodErrors.referenceNumber && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.referenceNumber}</span>}
+                    </label>
+                  </div>
+                  <div>
+                    <span className={labelClass}>QR Image</span>
+                    <div className="mt-2">
+                      <PackageMediaField label="QR Image" folder="payment-methods" value={editing.qrImageUrl} onUploaded={(qrImageUrl) => updateEditing({ qrImageUrl })} />
+                    </div>
+                    {paymentMethodErrors.qrImageUrl && <p className="mt-2 text-xs font-medium text-viaje-red">{paymentMethodErrors.qrImageUrl}</p>}
+                  </div>
+                </CardContent>
+              </Card>
+              {modalError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{modalError}</p>}
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
+                <Button type="button" onClick={savePaymentMethod} disabled={saving || paymentMethodInvalid}>{saving ? "Saving..." : "Save Payment Method"}</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

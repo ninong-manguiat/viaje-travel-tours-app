@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, ReactNode } from "react";
 import {
   Anchor,
@@ -44,7 +44,8 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cmsIconOptions, defaultWebsiteContent, type CmsAccreditation, type CmsActivity, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
+import { isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
+import { cmsIconOptions, defaultWebsiteContent, isValidLandlineNumber, type CmsAccreditation, type CmsActivity, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
 
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
@@ -170,11 +171,12 @@ function AccordionSection({ title, defaultOpen = false, children }: { title: str
   );
 }
 
-function TextField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+function TextField({ label, value, onChange, placeholder, error }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; error?: string }) {
   return (
     <label className={fieldClass}>
       <span className={labelClass}>{label}</span>
       <Input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      {error && <span className="text-xs font-medium text-viaje-red">{error}</span>}
     </label>
   );
 }
@@ -568,6 +570,10 @@ function CmsItemAccordion({
 }
 
 type SortableCmsSection = "accreditations" | "clients" | "activities" | "proofs";
+type WebsiteContentErrors = {
+  aboutContactNumber?: string;
+  aboutLandlineNumber?: string;
+};
 
 function reorderItems<T>(items: T[], fromIndex: number, toIndex: number) {
   const nextItems = [...items];
@@ -582,6 +588,16 @@ export function WebsiteContentEditor() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [draggedItem, setDraggedItem] = useState<{ section: SortableCmsSection; index: number } | null>(null);
+
+  const validationErrors = useMemo<WebsiteContentErrors>(() => {
+    const errors: WebsiteContentErrors = {};
+    if (!content.aboutUs.contactNumber.trim()) errors.aboutContactNumber = "Contact number is required.";
+    else if (!isValidContactNumber(content.aboutUs.contactNumber)) errors.aboutContactNumber = "Enter a valid +63 mobile number.";
+    if (!content.aboutUs.landlineNumber.trim()) errors.aboutLandlineNumber = "Landline number is required.";
+    else if (!isValidLandlineNumber(content.aboutUs.landlineNumber)) errors.aboutLandlineNumber = "Enter a valid landline number.";
+    return errors;
+  }, [content.aboutUs.contactNumber, content.aboutUs.landlineNumber]);
+  const hasValidationErrors = Object.values(validationErrors).some(Boolean);
 
   useEffect(() => {
     let mounted = true;
@@ -598,6 +614,11 @@ export function WebsiteContentEditor() {
   }, []);
 
   async function save() {
+    if (hasValidationErrors) {
+      setStatus("Please fix the highlighted About Us fields before saving.");
+      return;
+    }
+
     setSaving(true);
     setStatus("");
     try {
@@ -676,7 +697,7 @@ export function WebsiteContentEditor() {
           <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">CMS</p>
           <h1 className="mt-2 text-3xl font-bold text-viaje-navy">Website Content</h1>
         </div>
-        <Button className="w-fit" onClick={save} disabled={saving || loading}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Content"}</Button>
+        <Button className="w-fit" onClick={save} disabled={saving || loading || hasValidationErrors}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Content"}</Button>
       </div>
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
@@ -723,8 +744,8 @@ export function WebsiteContentEditor() {
         </div>
           <TextField label="Section Description" value={content.aboutUs.sectionDescription} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescription: value })} />
           <TextField label="Section Description Subs" value={content.aboutUs.sectionDescriptionSubs} onChange={(value) => section("aboutUs", { ...content.aboutUs, sectionDescriptionSubs: value })} />
-          <TextField label="Contact Number" value={content.aboutUs.contactNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, contactNumber: value })} />
-          <TextField label="Landline Number" value={content.aboutUs.landlineNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, landlineNumber: value })} />
+          <TextField label="Contact Number" value={content.aboutUs.contactNumber || "+63"} error={validationErrors.aboutContactNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, contactNumber: normalizeContactNumber(value) })} />
+          <TextField label="Landline Number" value={content.aboutUs.landlineNumber} error={validationErrors.aboutLandlineNumber} onChange={(value) => section("aboutUs", { ...content.aboutUs, landlineNumber: value })} />
           <TextField label="Facebook" value={content.aboutUs.facebook} onChange={(value) => section("aboutUs", { ...content.aboutUs, facebook: value })} />
           <TextField label="Link of Direction" value={content.aboutUs.directionLink} onChange={(value) => section("aboutUs", { ...content.aboutUs, directionLink: value })} />
           <div className="md:col-span-2"><TextAreaField label="Direction" value={content.aboutUs.direction} onChange={(value) => section("aboutUs", { ...content.aboutUs, direction: value })} /></div>
@@ -1087,6 +1108,7 @@ function WebsiteContentPreview({ content }: { content: WebsiteContent }) {
           </div>
           <div className="mt-3 space-y-2 text-xs leading-5 text-viaje-soft">
             <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.contactNumber}</p>
+            <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.landlineNumber}</p>
             <p className="flex items-center gap-2"><Facebook className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.facebook || "Facebook page"}</p>
             <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-viaje-red" />{content.aboutUs.direction}</p>
           </div>

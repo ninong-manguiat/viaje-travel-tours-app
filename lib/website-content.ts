@@ -207,3 +207,8 @@ export function mergeWebsiteContent(content?: Partial<WebsiteContent> | null): W
     proofTransactions: { ...defaultWebsiteContent.proofTransactions, ...content?.proofTransactions }
   };
 }
+
+export function isValidLandlineNumber(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 10;
+}

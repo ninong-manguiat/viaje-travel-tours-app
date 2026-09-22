@@ -230,6 +230,8 @@ export default async function HomePage() {
   }));
   const phoneDisplay = websiteContent.aboutUs.contactNumber;
   const phoneHref = telHref(phoneDisplay);
+  const landlineDisplay = websiteContent.aboutUs.landlineNumber;
+  const landlineHref = telHref(landlineDisplay);
   const facebookUrl = websiteContent.aboutUs.facebook;
   const address = websiteContent.aboutUs.direction;
   const googleMapsUrl = websiteContent.aboutUs.directionLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -316,6 +318,15 @@ export default async function HomePage() {
                   <span>
                     <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">Contact Number</span>
                     <span className="mt-1 block font-serif text-xl font-semibold text-viaje-navy">{phoneDisplay}</span>
+                  </span>
+                </a>
+                <a href={landlineHref} className="flex items-center gap-4 rounded-[8px] border border-viaje-line p-4 transition hover:bg-viaje-paper">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-viaje-red text-white">
+                    <Phone className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-viaje-soft">Landline Number</span>
+                    <span className="mt-1 block font-serif text-xl font-semibold text-viaje-navy">{landlineDisplay}</span>
                   </span>
                 </a>
                 <a href={facebookUrl} target="_blank" rel="noreferrer" className="flex items-center gap-4 rounded-[8px] border border-viaje-line p-4 transition hover:bg-viaje-paper">

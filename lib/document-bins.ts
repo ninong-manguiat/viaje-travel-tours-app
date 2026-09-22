@@ -10,6 +10,8 @@ export const documentTypeOptions = [
 ] as const;
 
 export const acceptedFileTypeOptions = ["PDF", "JPG / JPEG", "PNG"] as const;
+export const maxDocumentUploadsPerRequirement = 5;
+export const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type DocumentBinStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
 export type DocumentRequirementStatus = "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED";
@@ -159,4 +161,17 @@ export function fileTypeAllowed(file: File, acceptedTypes: AcceptedFileType[]) {
     if (accepted === "PNG") return type === "image/png" || name.endsWith(".png");
     return false;
   });
+}
+
+export function normalizeContactNumber(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "+63";
+  if (digits.startsWith("630")) return `+63${digits.slice(3, 13)}`;
+  if (digits.startsWith("63")) return `+63${digits.slice(2, 12)}`;
+  if (digits.startsWith("0")) return `+63${digits.slice(1, 11)}`;
+  return `+63${digits.slice(0, 10)}`;
+}
+
+export function isValidContactNumber(value: unknown) {
+  return /^\+639\d{9}$/.test(normalizeContactNumber(value));
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Marquee from "react-fast-marquee";
 import { ArrowRight, MapPin } from "lucide-react";
@@ -8,9 +9,19 @@ import type { TravelPackage } from "@/lib/types";
 import { formatPeso } from "@/lib/utils";
 
 export function HeroPackageCarousel({ items }: { items: TravelPackage[] }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setReady(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <div className="relative overflow-hidden py-5">
-      <Marquee autoFill pauseOnHover speed={34} gradient gradientColor="#f7fbff" gradientWidth={56}>
+      <Marquee key={ready ? "ready" : "initial"} autoFill pauseOnHover play={ready} speed={34} gradient gradientColor="#f7fbff" gradientWidth={56}>
         {items.map((item) => (
           <article key={item.id} className="mx-3 w-[280px] overflow-hidden rounded-[8px] border border-viaje-line bg-white shadow-[0_18px_44px_-32px_rgba(15,36,56,0.55)]">
             <img src={item.coverImageUrl} alt={item.title} className="h-[158px] w-full object-cover" />

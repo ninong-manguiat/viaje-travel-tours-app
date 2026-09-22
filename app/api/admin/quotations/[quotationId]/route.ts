@@ -11,6 +11,7 @@ import {
   totalQuotationItems,
   type QuotationItemType,
 } from "@/lib/quotations";
+import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,8 +20,6 @@ function unauthorized() {
 function isAdmin(request: NextRequest) {
   return request.cookies.get("viaje-role")?.value === "admin";
 }
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalizeItems(items: unknown[], quotationId: string) {
   return items.map((raw, index) => {
@@ -40,7 +39,7 @@ function normalizeItems(items: unknown[], quotationId: string) {
 function validatePayload(payload: Record<string, unknown>, items: ReturnType<typeof normalizeItems>) {
   if (!String(payload.clientName || "").trim()) return "Client name is required.";
   if (!emailPattern.test(String(payload.email || "").trim())) return "A valid email address is required.";
-  if (!String(payload.contactNumber || "").trim()) return "Contact number is required.";
+  if (!isValidContactNumber(payload.contactNumber)) return "Contact number must be a valid +63 mobile number.";
   if (!items.length) return "At least one quotation item is required.";
   for (const item of items) {
     if (item.type === "Other" && !item.customName.trim()) return "Custom item name is required for Other items.";
@@ -79,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: { params: { quotatio
   await adminDb.collection("quotations").doc(params.quotationId).set({
     clientName: String(body.clientName || "").trim(),
     email: String(body.email || "").trim(),
-    contactNumber: String(body.contactNumber || "").trim(),
+    contactNumber: normalizeContactNumber(body.contactNumber),
     totalAmount: totalQuotationItems(items),
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });

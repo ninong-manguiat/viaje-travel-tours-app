@@ -5,6 +5,9 @@ import {
   documentBinToken,
   documentRequirementId,
   documentTypeOptions,
+  emailPattern,
+  isValidContactNumber,
+  normalizeContactNumber,
   serializeDocumentBin,
   statusFromRequirements,
   type AcceptedFileType,
@@ -48,6 +51,8 @@ function validateBin(body: Record<string, unknown>) {
   const requirements = Array.isArray(body.requirements) ? body.requirements : [];
 
   if (!clientName || !email || !contactNumber || !purpose) return "Client name, email, contact number, and purpose are required.";
+  if (!emailPattern.test(email)) return "A valid email address is required.";
+  if (!isValidContactNumber(contactNumber)) return "Contact number must be a valid +63 mobile number.";
   if (!requirements.length) return "At least one document requirement is required.";
 
   const seen = new Set<string>();
@@ -106,7 +111,7 @@ export async function POST(request: NextRequest) {
     ...(bookingId ? { bookingId, bookingReference } : {}),
     clientName: String(body.clientName || "").trim(),
     email: String(body.email || "").trim(),
-    contactNumber: String(body.contactNumber || "").trim(),
+    contactNumber: normalizeContactNumber(body.contactNumber),
     purpose: String(body.purpose || "").trim(),
     publicToken: documentBinToken(),
     status: statusFromRequirements(requirements, "ACTIVE"),

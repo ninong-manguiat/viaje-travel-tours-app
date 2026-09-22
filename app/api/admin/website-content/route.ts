@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { defaultWebsiteContent, mergeWebsiteContent } from "@/lib/website-content";
+import { defaultWebsiteContent, isValidLandlineNumber, mergeWebsiteContent } from "@/lib/website-content";
+import { isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
 import { normalizeWebsiteContentMedia } from "@/lib/website-content-media";
 
 function unauthorized() {
@@ -33,6 +34,13 @@ export async function PUT(request: NextRequest) {
 
   const body = await request.json();
   const content = normalizeWebsiteContentMedia(mergeWebsiteContent(body?.content));
+  if (!isValidContactNumber(content.aboutUs.contactNumber)) {
+    return NextResponse.json({ error: "About Us contact number must be a valid +63 mobile number." }, { status: 400 });
+  }
+  if (!isValidLandlineNumber(content.aboutUs.landlineNumber)) {
+    return NextResponse.json({ error: "About Us landline number must be a valid landline number." }, { status: 400 });
+  }
+  content.aboutUs.contactNumber = normalizeContactNumber(content.aboutUs.contactNumber);
 
   const docRef = await getDocRef();
   await docRef.set(

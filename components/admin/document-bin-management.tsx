@@ -12,6 +12,9 @@ import {
   documentBinProgress,
   documentName,
   documentTypeOptions,
+  emailPattern,
+  isValidContactNumber,
+  normalizeContactNumber,
   type AcceptedFileType,
   type DocumentBin,
   type DocumentRequirement,
@@ -33,6 +36,8 @@ type LinkedBookingContext = {
   reference: string;
 };
 
+type CreateErrors = Partial<Record<"clientName" | "email" | "contactNumber" | "purpose" | "requirements" | "submit", string>>;
+
 const emptyRequirement = (): RequirementDraft => ({
   id: `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   documentType: "Passport",
@@ -44,7 +49,7 @@ const emptyRequirement = (): RequirementDraft => ({
 const emptyForm = {
   clientName: "",
   email: "",
-  contactNumber: "",
+  contactNumber: "+63",
   purpose: "",
 };
 
@@ -199,6 +204,7 @@ export function DocumentBinManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/document-bins")
@@ -258,31 +264,57 @@ export function DocumentBinManagement() {
     setForm(emptyForm);
     setRequirements([emptyRequirement()]);
     setLinkedBooking(null);
+    setCreateError("");
     setShowCreate(false);
   }
 
-  function validateForm(items: RequirementDraft[]) {
-    if (!form.clientName.trim() || !form.email.trim() || !form.contactNumber.trim() || !form.purpose.trim()) return "Client name, email, contact number, and purpose are required.";
-    if (!items.length) return "At least one document requirement is required.";
+  function validateForm(items: RequirementDraft[]): CreateErrors {
+    const errors: CreateErrors = {};
+    const email = form.email.trim();
+    const contactNumber = form.contactNumber.trim();
+
+    if (!form.clientName.trim()) errors.clientName = "Client name is required.";
+    if (!email) errors.email = "Email address is required.";
+    else if (!emailPattern.test(email)) errors.email = "Enter a valid email address.";
+    if (!contactNumber) errors.contactNumber = "Contact number is required.";
+    else if (!isValidContactNumber(contactNumber)) errors.contactNumber = "Enter a valid +63 mobile number.";
+    if (!form.purpose.trim()) errors.purpose = "Purpose is required.";
+    if (!items.length) {
+      errors.requirements = "At least one document requirement is required.";
+      return errors;
+    }
+
     const seen = new Set<DocumentType>();
     for (const item of items) {
       if (item.documentType !== "Other") {
-        if (seen.has(item.documentType)) return "Duplicate predefined requirements are not allowed.";
+        if (seen.has(item.documentType)) {
+          errors.requirements = "Duplicate predefined requirements are not allowed.";
+          return errors;
+        }
         seen.add(item.documentType);
       }
-      if (item.documentType === "Other" && !item.customName.trim()) return "Custom document name is required.";
-      if (!item.acceptedFileTypes.length) return "Accepted file types are required.";
+      if (item.documentType === "Other" && !item.customName.trim()) {
+        errors.requirements = "Custom document name is required.";
+        return errors;
+      }
+      if (!item.acceptedFileTypes.length) {
+        errors.requirements = "Accepted file types are required.";
+        return errors;
+      }
     }
-    return "";
+    return errors;
   }
 
+  const createErrors = useMemo(() => showCreate ? validateForm(requirements) : {}, [form, requirements, showCreate]);
+  const createIsInvalid = Object.values(createErrors).some(Boolean);
+
   async function createBin() {
-    const error = validateForm(requirements);
-    if (error) {
-      setStatus(error);
+    const errors = validateForm(requirements);
+    if (Object.values(errors).some(Boolean)) {
       return;
     }
 
+    setCreateError("");
     setSaving(true);
     const response = await fetch("/api/admin/document-bins", {
       method: "POST",
@@ -293,7 +325,7 @@ export function DocumentBinManagement() {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      setStatus(data?.error ?? "Unable to create document bin.");
+      setCreateError(data?.error ?? "Unable to create document bin.");
       return;
     }
 
@@ -370,7 +402,7 @@ export function DocumentBinManagement() {
           <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-viaje-navy">Documents</h1>
         </div>
-        <Button type="button" onClick={() => { setLinkedBooking(null); setShowCreate(true); }}><Plus className="h-4 w-4" />Create Document Bin</Button>
+        <Button type="button" onClick={() => { setLinkedBooking(null); setCreateError(""); setShowCreate(true); }}><Plus className="h-4 w-4" />Create Document Bin</Button>
       </div>
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
@@ -440,19 +472,39 @@ export function DocumentBinManagement() {
                       </a>
                     </div>
                   )}
-                  <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Client Name</span><Input value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} /></label>
-                  <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Email</span><Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></label>
-                  <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Contact Number</span><Input value={form.contactNumber} onChange={(event) => setForm((current) => ({ ...current, contactNumber: event.target.value }))} /></label>
-                  <label className="grid gap-1.5"><span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Purpose</span><Input value={form.purpose} onChange={(event) => setForm((current) => ({ ...current, purpose: event.target.value }))} placeholder="Japan Visa Requirements" /></label>
+                  <label className="grid gap-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Client Name</span>
+                    <Input value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} />
+                    {createErrors.clientName && <span className="text-xs font-medium text-viaje-red">{createErrors.clientName}</span>}
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Email</span>
+                    <Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+                    {createErrors.email && <span className="text-xs font-medium text-viaje-red">{createErrors.email}</span>}
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Contact Number</span>
+                    <Input value={form.contactNumber || "+63"} onChange={(event) => setForm((current) => ({ ...current, contactNumber: normalizeContactNumber(event.target.value) }))} />
+                    {createErrors.contactNumber && <span className="text-xs font-medium text-viaje-red">{createErrors.contactNumber}</span>}
+                  </label>
+                  <label className="grid gap-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Purpose</span>
+                    <Input value={form.purpose} onChange={(event) => setForm((current) => ({ ...current, purpose: event.target.value }))} placeholder="Japan Visa Requirements" />
+                    {createErrors.purpose && <span className="text-xs font-medium text-viaje-red">{createErrors.purpose}</span>}
+                  </label>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader><CardTitle>Document Requirements</CardTitle></CardHeader>
-                <CardContent><RequirementEditor requirements={requirements} onChange={setRequirements} /></CardContent>
+                <CardContent className="grid gap-3">
+                  <RequirementEditor requirements={requirements} onChange={setRequirements} />
+                  {createErrors.requirements && <p className="text-sm font-medium text-viaje-red">{createErrors.requirements}</p>}
+                </CardContent>
               </Card>
+              {createError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{createError}</p>}
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={resetCreate}>Cancel</Button>
-                <Button type="button" onClick={createBin} disabled={saving}>{saving ? "Creating..." : "Create Document Bin"}</Button>
+                <Button type="button" onClick={createBin} disabled={saving || createIsInvalid}>{saving ? "Creating..." : "Create Document Bin"}</Button>
               </div>
             </div>
           </div>
