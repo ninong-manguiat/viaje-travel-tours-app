@@ -45,7 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
-import { cmsIconOptions, defaultWebsiteContent, isValidLandlineNumber, type CmsAccreditation, type CmsActivity, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
+import { cmsIconOptions, defaultWebsiteContent, isValidLandlineNumber, type CmsAccreditation, type CmsActivity, type CmsBusinessLegitimacyDocument, type CmsClient, type CmsIconName, type CmsProofTransaction, type CmsService, type CmsServiceListItem, type WebsiteContent } from "@/lib/website-content";
 
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
@@ -99,6 +99,10 @@ function newActivity(): CmsActivity {
 
 function newProof(): CmsProofTransaction {
   return { title: "New Proof", description: "", galleryUrls: [] };
+}
+
+function newBusinessDocument(): CmsBusinessLegitimacyDocument {
+  return { name: "Business Permit", fileUrl: "" };
 }
 
 export function IconSelect({ value, onChange }: { value: CmsIconName; onChange: (value: CmsIconName) => void }) {
@@ -266,6 +270,88 @@ function SingleImageUpload({ label, value, folder, onChange }: { label: string; 
         >
           <UploadCloud className="h-5 w-5" />
           {uploading ? "Uploading..." : "Upload Image"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function fileNameFromUrl(url: string) {
+  if (!url) return "";
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").pop() || "Uploaded file");
+  } catch {
+    return url.split("/").pop() || "Uploaded file";
+  }
+}
+
+function isImageFile(url: string) {
+  return /\.(jpe?g|png|webp)$/i.test(url.split("?")[0] || "");
+}
+
+function DocumentFileUpload({ label, value, folder, onChange }: { label: string; value: string; folder: string; onChange: (value: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function removeCurrent() {
+    await deleteWebsiteContentImage(value);
+    onChange("");
+  }
+
+  async function upload(file?: File) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      if (value) await deleteWebsiteContentImage(value);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", folder);
+      const response = await fetch("/api/admin/website-content/upload", { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Upload failed");
+      const data = await response.json();
+      onChange(data.url);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="grid gap-2" aria-label={label}>
+      <span className={labelClass}>{label}</span>
+      <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => upload(event.target.files?.[0])} />
+      {value ? (
+        <div className="grid gap-3 rounded-[10px] border border-viaje-line bg-viaje-paper p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-white">
+              {isImageFile(value) ? <img src={value} alt="" className="h-full w-full object-cover" /> : <FileText className="h-6 w-6 text-viaje-red" />}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-viaje-navy">{fileNameFromUrl(value)}</p>
+              <a href={value} target="_blank" rel="noreferrer" className="text-xs font-semibold text-viaje-red hover:underline">View file</a>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
+              <UploadCloud className="h-3.5 w-3.5" />
+              {uploading ? "Uploading..." : "Replace File"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" className="text-viaje-red" onClick={removeCurrent}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-[10px] border border-dashed border-viaje-line bg-viaje-paper text-sm font-semibold text-viaje-soft transition hover:bg-viaje-paperAlt"
+          disabled={uploading}
+        >
+          <UploadCloud className="h-5 w-5" />
+          {uploading ? "Uploading..." : "Upload PDF/Image"}
         </button>
       )}
     </div>
@@ -1033,6 +1119,53 @@ export function WebsiteContentEditor() {
           ))}
         </div>
       </RepeatableSimpleSection>
+
+      <RepeatableSimpleSection
+        title="Business Legitimacy Documents"
+        description={content.businessLegitimacy.sectionDescription}
+        subtitle={content.businessLegitimacy.sectionDescriptionSubs}
+        onDescription={(value) => section("businessLegitimacy", { ...content.businessLegitimacy, sectionDescription: value })}
+        onSubtitle={(value) => section("businessLegitimacy", { ...content.businessLegitimacy, sectionDescriptionSubs: value })}
+      >
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" className="w-fit" onClick={() => section("businessLegitimacy", { ...content.businessLegitimacy, documents: [...content.businessLegitimacy.documents, newBusinessDocument()] })}>
+            <Plus className="h-4 w-4" />
+            Add Document
+          </Button>
+        </div>
+        <div className="grid gap-4">
+          {content.businessLegitimacy.documents.map((document: CmsBusinessLegitimacyDocument, index) => (
+            <CmsItemAccordion
+              key={index}
+              title={`Document # ${index + 1} : ${document.name || "Untitled Document"}`}
+              removeLabel="Remove this document"
+              onRemove={() => section("businessLegitimacy", { ...content.businessLegitimacy, documents: content.businessLegitimacy.documents.filter((_, itemIndex) => itemIndex !== index) })}
+            >
+              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_300px] md:items-start">
+                <TextField
+                  label="Name"
+                  value={document.name}
+                  onChange={(value) => {
+                    const documents = [...content.businessLegitimacy.documents];
+                    documents[index] = { ...document, name: value };
+                    section("businessLegitimacy", { ...content.businessLegitimacy, documents });
+                  }}
+                />
+                <DocumentFileUpload
+                  label="File"
+                  folder="business-legitimacy"
+                  value={document.fileUrl}
+                  onChange={(fileUrl) => {
+                    const documents = [...content.businessLegitimacy.documents];
+                    documents[index] = { ...document, fileUrl };
+                    section("businessLegitimacy", { ...content.businessLegitimacy, documents });
+                  }}
+                />
+              </div>
+            </CmsItemAccordion>
+          ))}
+        </div>
+      </RepeatableSimpleSection>
         </div>
         <WebsiteContentPreview content={content} />
       </div>
@@ -1160,6 +1293,23 @@ function WebsiteContentPreview({ content }: { content: WebsiteContent }) {
                 </div>
               </article>
             ))}
+          </div>
+        </PreviewSection>
+
+        <PreviewSection eyebrow={content.businessLegitimacy.sectionDescription} title={content.businessLegitimacy.sectionDescriptionSubs}>
+          <div className="grid gap-2">
+            {content.businessLegitimacy.documents.slice(0, 4).map((document, index) => (
+              <div key={`${document.name}-${index}`} className="flex items-center gap-3 rounded-[10px] border border-viaje-line p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-viaje-paper">
+                  {isImageFile(document.fileUrl) ? <img src={document.fileUrl} alt="" className="h-full w-full object-cover" /> : <FileText className="h-5 w-5 text-viaje-red" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-serif text-sm font-semibold text-viaje-navy">{document.name}</p>
+                  <p className="text-[11px] text-viaje-soft">{document.fileUrl ? "File uploaded" : "No file yet"}</p>
+                </div>
+              </div>
+            ))}
+            {!content.businessLegitimacy.documents.length && <p className="text-xs text-viaje-soft">No documents added yet.</p>}
           </div>
         </PreviewSection>
 

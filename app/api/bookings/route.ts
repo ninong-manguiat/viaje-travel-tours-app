@@ -62,7 +62,11 @@ function itineraryContent(pkg: Awaited<ReturnType<typeof getPackageById>>) {
 }
 
 function paymentAmounts(finalAmount: number, paymentOption: string) {
-  if (paymentOption !== "downpayment_50") return { amountSubmitted: finalAmount, remainingBalance: 0 };
+  if (paymentOption === "full") return { amountSubmitted: finalAmount, remainingBalance: 0 };
+  if (paymentOption === "reservation_fee") {
+    const amountSubmitted = Math.min(15000, finalAmount);
+    return { amountSubmitted, remainingBalance: finalAmount - amountSubmitted };
+  }
 
   const amountSubmitted = Math.floor(finalAmount / 2);
   return { amountSubmitted, remainingBalance: finalAmount - amountSubmitted };
@@ -71,11 +75,18 @@ function paymentAmounts(finalAmount: number, paymentOption: string) {
 function paymentSchedule(finalAmount: number, paymentOption: string, departureDate?: string) {
   const currentDate = dateOnly();
 
-  if (paymentOption !== "downpayment_50") {
+  if (paymentOption === "full") {
     return [{ id: "full-payment", label: "Full Payment", amount: finalAmount, dueDate: currentDate, status: "for_verification" }];
   }
 
   const amounts = paymentAmounts(finalAmount, paymentOption);
+  if (paymentOption === "reservation_fee") {
+    return [
+      { id: "reservation-fee", label: "Reservation Fee", amount: amounts.amountSubmitted, dueDate: currentDate, status: "for_verification" },
+      ...(amounts.remainingBalance > 0 ? [{ id: "remaining-balance", label: "Remaining Balance", amount: amounts.remainingBalance, dueDate: dateOnly(departureDate), status: "pending" }] : []),
+    ];
+  }
+
   return [
     { id: "downpayment", label: "Downpayment", amount: amounts.amountSubmitted, dueDate: currentDate, status: "for_verification" },
     { id: "remaining-balance", label: "Remaining Balance", amount: amounts.remainingBalance, dueDate: dateOnly(departureDate), status: "pending" },
@@ -101,7 +112,9 @@ export async function POST(request: NextRequest) {
   const departureAdditionalAmount = selectedDeparture?.additionalAmount ?? 0;
   const addonAmount = selectedAddon?.price ?? 0;
   const finalAmount = (baseAmount + departureAdditionalAmount + addonAmount) * pax;
-  const requestedPaymentOption = body?.payment?.paymentOption === "downpayment_50" ? "downpayment_50" : "full";
+  const requestedPaymentOption = ["reservation_fee", "downpayment_50", "full"].includes(String(body?.payment?.paymentOption))
+    ? String(body?.payment?.paymentOption)
+    : "full";
   const paymentOption = requestedPaymentOption;
   const { amountSubmitted, remainingBalance } = paymentAmounts(finalAmount, paymentOption);
   const schedule = paymentSchedule(finalAmount, paymentOption, selectedDeparture?.startDate);
@@ -160,7 +173,7 @@ export async function POST(request: NextRequest) {
     guests: body?.guests ?? [],
     groupContact: normalizedGroupContact,
     paymentOption,
-    paymentType: paymentOption === "downpayment_50" ? "50% Downpayment" : "Full Payment",
+    paymentType: paymentOption === "reservation_fee" ? "Reservation Fee" : paymentOption === "downpayment_50" ? "50% Downpayment" : "Full Payment",
     paymentInfo: {
       method: body?.payment?.method ?? "",
       transactionReferenceNumber: body?.payment?.referenceNumber ?? "",
@@ -187,7 +200,7 @@ export async function POST(request: NextRequest) {
     id: transactionId,
     bookingId,
     clientId: null,
-    type: paymentOption === "downpayment_50" ? "deposit" : "full",
+    type: paymentOption === "reservation_fee" ? "reservation" : paymentOption === "downpayment_50" ? "deposit" : "full",
     amount: amountSubmitted,
     dueDate: new Date().toISOString(),
     status: "for_verification",
@@ -199,6 +212,8 @@ export async function POST(request: NextRequest) {
     transactionId,
     bookingId,
     clientId: null,
+    paymentName: schedule[0]?.label ?? "",
+    paymentScheduleId: schedule[0]?.id ?? "",
     method: body?.payment?.method ?? "",
     paymentMethodReferenceNumber: body?.payment?.paymentMethodReferenceNumber ?? "",
     referenceNumber: body?.payment?.referenceNumber ?? "",

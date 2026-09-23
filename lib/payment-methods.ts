@@ -1,7 +1,9 @@
 export type PaymentMethod = {
   id: string;
   bank: string;
+  accountName: string;
   referenceNumber: string;
+  bankLogoUrl: string;
   qrImageUrl: string;
 };
 
@@ -10,7 +12,9 @@ export function newPaymentMethod(): PaymentMethod {
   return {
     id,
     bank: "",
+    accountName: "",
     referenceNumber: "",
+    bankLogoUrl: "",
     qrImageUrl: "",
   };
 }
@@ -20,7 +24,9 @@ export function normalizePaymentMethod(input?: Partial<PaymentMethod> | null): P
   return {
     id: input?.id || fallback.id,
     bank: input?.bank?.trim() ?? "",
+    accountName: input?.accountName?.trim() ?? "",
     referenceNumber: input?.referenceNumber?.trim() ?? "",
+    bankLogoUrl: input?.bankLogoUrl?.trim() ?? "",
     qrImageUrl: input?.qrImageUrl?.trim() ?? "",
   };
 }

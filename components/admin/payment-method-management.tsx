@@ -12,13 +12,15 @@ import type { PaymentMethod } from "@/lib/payment-methods";
 const emptyPaymentMethod: PaymentMethod = {
   id: "",
   bank: "",
+  accountName: "",
   referenceNumber: "",
+  bankLogoUrl: "",
   qrImageUrl: "",
 };
 
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
-type PaymentMethodErrors = Partial<Record<"bank" | "referenceNumber" | "qrImageUrl", string>>;
+type PaymentMethodErrors = Partial<Record<"bank" | "accountName" | "referenceNumber", string>>;
 
 export function PaymentMethodManagement() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -51,8 +53,8 @@ export function PaymentMethodManagement() {
     const errors: PaymentMethodErrors = {};
     if (!method) return errors;
     if (!method.bank.trim()) errors.bank = "Bank is required.";
+    if (!method.accountName.trim()) errors.accountName = "Account name is required.";
     if (!method.referenceNumber.trim()) errors.referenceNumber = "Reference number is required.";
-    if (!method.qrImageUrl.trim()) errors.qrImageUrl = "QR image is required.";
     return errors;
   }
 
@@ -122,23 +124,33 @@ export function PaymentMethodManagement() {
         <CardContent>
           <Table>
             <THead>
-              <TR><TH>Bank</TH><TH>Reference Number</TH><TH>QR Image</TH><TH /></TR>
+              <TR><TH>Logo</TH><TH>Bank</TH><TH>Account Name</TH><TH>Reference Number</TH><TH>QR Image</TH><TH /></TR>
             </THead>
             <TBody>
-              {loading && <TR><TD colSpan={4}>Loading payment methods...</TD></TR>}
-              {!loading && !paymentMethods.length && <TR><TD colSpan={4}>No payment methods yet.</TD></TR>}
+              {loading && <TR><TD colSpan={6}>Loading payment methods...</TD></TR>}
+              {!loading && !paymentMethods.length && <TR><TD colSpan={6}>No payment methods yet.</TD></TR>}
               {!loading && paymentMethods.map((paymentMethod) => (
                 <TR key={paymentMethod.id}>
+                  <TD>
+                    {paymentMethod.bankLogoUrl ? (
+                      <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper p-1.5">
+                        <img src={paymentMethod.bankLogoUrl} alt="" className="max-h-full w-full object-contain" />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-viaje-soft">None</span>
+                    )}
+                  </TD>
                   <TD>{paymentMethod.bank}</TD>
+                  <TD>{paymentMethod.accountName || <span className="text-xs text-viaje-soft">Not set</span>}</TD>
                   <TD>{paymentMethod.referenceNumber}</TD>
                   <TD>
-                    <div className="h-14 w-14 overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper">
-                      {paymentMethod.qrImageUrl ? (
+                    {paymentMethod.qrImageUrl ? (
+                      <div className="h-14 w-14 overflow-hidden rounded-[8px] border border-viaje-line bg-viaje-paper">
                         <img src={paymentMethod.qrImageUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="h-full w-full bg-viaje-paperAlt" />
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-viaje-soft">None</span>
+                    )}
                   </TD>
                   <TD>
                     <div className="flex justify-end gap-2">
@@ -167,12 +179,17 @@ export function PaymentMethodManagement() {
             <div className="grid gap-6 p-5">
               <Card>
                 <CardHeader><CardTitle>Payment Method Details</CardTitle></CardHeader>
-                <CardContent className="grid gap-5 md:grid-cols-[1fr_180px]">
-                  <div className="grid gap-4 md:grid-cols-2">
+                <CardContent className="grid gap-5 md:grid-cols-[1fr_180px_180px]">
+                  <div className="grid gap-4">
                     <label className={fieldClass}>
                       <span className={labelClass}>Bank</span>
                       <Input required value={editing.bank} onChange={(event) => updateEditing({ bank: event.target.value })} />
                       {paymentMethodErrors.bank && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.bank}</span>}
+                    </label>
+                    <label className={fieldClass}>
+                      <span className={labelClass}>Account Name</span>
+                      <Input required value={editing.accountName} onChange={(event) => updateEditing({ accountName: event.target.value })} />
+                      {paymentMethodErrors.accountName && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.accountName}</span>}
                     </label>
                     <label className={fieldClass}>
                       <span className={labelClass}>Reference Number</span>
@@ -181,11 +198,18 @@ export function PaymentMethodManagement() {
                     </label>
                   </div>
                   <div>
+                    <span className={labelClass}>Bank Logo</span>
+                    <p className="mt-1 text-xs text-viaje-soft">Optional</p>
+                    <div className="mt-2">
+                      <PackageMediaField label="Bank Logo" folder="payment-methods/logos" value={editing.bankLogoUrl} onUploaded={(bankLogoUrl) => updateEditing({ bankLogoUrl })} />
+                    </div>
+                  </div>
+                  <div>
                     <span className={labelClass}>QR Image</span>
+                    <p className="mt-1 text-xs text-viaje-soft">Optional</p>
                     <div className="mt-2">
                       <PackageMediaField label="QR Image" folder="payment-methods" value={editing.qrImageUrl} onUploaded={(qrImageUrl) => updateEditing({ qrImageUrl })} />
                     </div>
-                    {paymentMethodErrors.qrImageUrl && <p className="mt-2 text-xs font-medium text-viaje-red">{paymentMethodErrors.qrImageUrl}</p>}
                   </div>
                 </CardContent>
               </Card>

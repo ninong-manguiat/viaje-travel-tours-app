@@ -40,6 +40,13 @@ export function normalizeWebsiteContentMedia(content: WebsiteContent): WebsiteCo
         ...proof,
         galleryUrls: proof.galleryUrls.map(siteMediaUrl)
       }))
+    },
+    businessLegitimacy: {
+      ...content.businessLegitimacy,
+      documents: content.businessLegitimacy.documents.map((document) => ({
+        ...document,
+        fileUrl: siteMediaUrl(document.fileUrl)
+      }))
     }
   };
 }

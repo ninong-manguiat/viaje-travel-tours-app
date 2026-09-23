@@ -17,8 +17,8 @@ async function docRef(paymentMethodId: string) {
 
 function validatePaymentMethod(method: ReturnType<typeof normalizePaymentMethod>) {
   if (!method.bank) return "Bank is required.";
+  if (!method.accountName) return "Account name is required.";
   if (!method.referenceNumber) return "Reference number is required.";
-  if (!method.qrImageUrl) return "QR image is required.";
   return "";
 }
 

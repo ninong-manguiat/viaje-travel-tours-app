@@ -17,6 +17,10 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
+  const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
+  }
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const key = `website-content/${folder}/${Date.now()}-${sanitizeFileName(file.name)}`;

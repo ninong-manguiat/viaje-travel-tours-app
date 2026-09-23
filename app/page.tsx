@@ -38,6 +38,7 @@ import {   Anchor,
 } from "lucide-react";
 import { HeroPackageCarousel } from "@/components/domain/hero-package-carousel";
 import { PackageCard } from "@/components/domain/package-card";
+import { BusinessLegitimacyCarousel } from "@/components/domain/business-legitimacy-carousel";
 import { ProofTransactionsCarousel } from "@/components/domain/proof-transactions-carousel";
 import { RecentActivitiesCarousel } from "@/components/domain/recent-activities-carousel";
 import { Button } from "@/components/ui/button";
@@ -252,6 +253,7 @@ export default async function HomePage() {
       ? proof.galleryUrls.map((src, index) => ({ src, alt: `${proof.title} proof ${index + 1}` }))
       : [{ alt: `${proof.title} proof placeholder` }]
   }));
+  const businessDocuments = websiteContent.businessLegitimacy.documents.filter((document) => document.name && document.fileUrl);
 
   return (
     <main>
@@ -270,6 +272,18 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {businessDocuments.length > 0 && (
+        <section className="bg-viaje-paperAlt py-24">
+          <div className="container-page">
+            <div className="mb-10 max-w-3xl">
+              <p className="eyebrow">{websiteContent.businessLegitimacy.sectionDescription}</p>
+              <h2 className="mt-3 text-4xl font-medium text-viaje-navy">{websiteContent.businessLegitimacy.sectionDescriptionSubs}</h2>
+            </div>
+            <BusinessLegitimacyCarousel documents={businessDocuments} />
+          </div>
+        </section>
+      )}
 
       <section className="container-page py-24">
         <div className="mb-10">

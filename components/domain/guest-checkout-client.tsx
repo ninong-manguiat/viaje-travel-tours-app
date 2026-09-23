@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Copy } from "lucide-react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
+import { PaymentMethodButtonContent, PaymentMethodDetails, PaymentMethodQrImage } from "@/components/domain/payment-method-display";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ type GroupContact = {
   emailAddress: string;
 };
 
-type PaymentOption = "full" | "downpayment_50";
+type PaymentOption = "reservation_fee" | "downpayment_50" | "full";
 
 type PaymentScheduleItem = {
   id: string;
@@ -132,6 +133,10 @@ function dateOnly(value?: string) {
 
 function paymentAmounts(finalAmount: number, paymentOption: PaymentOption) {
   if (paymentOption === "full") return { dueNow: finalAmount, remainingBalance: 0 };
+  if (paymentOption === "reservation_fee") {
+    const dueNow = Math.min(15000, finalAmount);
+    return { dueNow, remainingBalance: finalAmount - dueNow };
+  }
 
   const dueNow = Math.floor(finalAmount / 2);
   return { dueNow, remainingBalance: finalAmount - dueNow };
@@ -153,6 +158,13 @@ function buildPaymentSchedule({
   }
 
   const { dueNow, remainingBalance } = paymentAmounts(finalAmount, paymentOption);
+  if (paymentOption === "reservation_fee") {
+    return [
+      { id: "reservation-fee", label: "Reservation Fee", amount: dueNow, dueDate: currentDate, status: "for_verification" },
+      ...(remainingBalance > 0 ? [{ id: "remaining-balance", label: "Remaining Balance", amount: remainingBalance, dueDate: dateOnly(departureDate), status: "pending" }] : []),
+    ];
+  }
+
   return [
     { id: "downpayment", label: "Downpayment", amount: dueNow, dueDate: currentDate, status: "for_verification" },
     { id: "remaining-balance", label: "Remaining Balance", amount: remainingBalance, dueDate: dateOnly(departureDate), status: "pending" },
@@ -252,6 +264,7 @@ export function GuestCheckoutClient({
   const [paymentMethodId, setPaymentMethodId] = useState(draft?.paymentMethodId ?? paymentMethods[0]?.id ?? "");
   const [paymentOption, setPaymentOption] = useState<PaymentOption>(draft?.paymentOption ?? "full");
   const [paymentProofUrl, setPaymentProofUrl] = useState(draft?.paymentProofUrl ?? "");
+  const [copyState, setCopyState] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [submitting, setSubmitting] = useState(false);
@@ -379,6 +392,15 @@ export function GuestCheckoutClient({
     setSubmittedReference(data.booking.reference);
   }
 
+  async function copyPaymentReference(referenceNumber: string) {
+    try {
+      await navigator.clipboard.writeText(referenceNumber);
+      setCopyState("Reference number copied.");
+    } catch {
+      setCopyState("Unable to copy reference number.");
+    }
+  }
+
   if (draftStatus === "completed" && !submittedReference) {
     return (
       <main className="container-page max-w-4xl py-10">
@@ -487,20 +509,28 @@ export function GuestCheckoutClient({
 
             {step === "payment" && (
               <div className="space-y-6">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <button type="button" onClick={() => setPaymentOption("full")} className="text-left">
-                    <Card className={`rounded-lg transition ${effectivePaymentOption === "full" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <button type="button" onClick={() => setPaymentOption("reservation_fee")} className="h-full text-left">
+                    <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "reservation_fee" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                       <CardContent className="p-4">
-                        <p className="font-semibold text-viaje-navy">Pay in Full</p>
-                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(finalAmount)} due now</p>
+                        <p className="font-semibold text-viaje-navy">Reservation Fee</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(paymentAmounts(finalAmount, "reservation_fee").dueNow)} due now</p>
                       </CardContent>
                     </Card>
                   </button>
-                  <button type="button" onClick={() => setPaymentOption("downpayment_50")} className="text-left">
-                    <Card className={`rounded-lg transition ${effectivePaymentOption === "downpayment_50" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                  <button type="button" onClick={() => setPaymentOption("downpayment_50")} className="h-full text-left">
+                    <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "downpayment_50" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                       <CardContent className="p-4">
                         <p className="font-semibold text-viaje-navy">50% Downpayment</p>
                         <p className="mt-1 text-sm text-viaje-soft">{formatPeso(paymentAmounts(finalAmount, "downpayment_50").dueNow)} due now</p>
+                      </CardContent>
+                    </Card>
+                  </button>
+                  <button type="button" onClick={() => setPaymentOption("full")} className="h-full text-left">
+                    <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "full" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
+                      <CardContent className="p-4">
+                        <p className="font-semibold text-viaje-navy">Pay in Full</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(finalAmount)} due now</p>
                       </CardContent>
                     </Card>
                   </button>
@@ -508,9 +538,9 @@ export function GuestCheckoutClient({
                 <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
                   <div className="flex justify-between gap-4"><span>Amount due now</span><strong className="text-viaje-navy">{formatPeso(dueNow)}</strong></div>
                   <div className="mt-2 flex justify-between gap-4"><span>Remaining balance</span><strong className="text-viaje-navy">{formatPeso(remainingBalance)}</strong></div>
-                  {effectivePaymentOption === "downpayment_50" && (
+                  {["downpayment_50", "reservation_fee"].includes(effectivePaymentOption) && (
                     <p className="mt-3 text-viaje-soft">
-                      The remaining 50% balance will stay open for staff payment tracking.
+                      The remaining balance will stay open for staff payment tracking.
                     </p>
                   )}
                 </div>
@@ -524,19 +554,34 @@ export function GuestCheckoutClient({
                         return (
                           <button key={method.id} type="button" onClick={() => setPaymentMethodId(method.id)} className="text-left">
                             <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
-                              <CardContent className="p-4 font-semibold text-viaje-navy">{method.bank}</CardContent>
+                              <CardContent className="p-0">
+                                <PaymentMethodButtonContent method={method} />
+                              </CardContent>
                             </Card>
                           </button>
                         );
                       })}
                     </div>
                     {selectedPaymentMethod && (
-                      <div className="grid gap-5 md:grid-cols-[220px_1fr]">
-                        <img src={selectedPaymentMethod.qrImageUrl} alt={`${selectedPaymentMethod.bank} payment QR`} className="aspect-square w-full rounded-lg border border-viaje-line object-cover" />
+                      <div className={`grid gap-5 ${selectedPaymentMethod.qrImageUrl ? "md:grid-cols-[220px_1fr]" : ""}`}>
+                        <PaymentMethodQrImage method={selectedPaymentMethod} />
                         <div className="space-y-4">
-                          <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
-                            <p className="font-semibold text-viaje-navy">{selectedPaymentMethod.bank}</p>
-                            <p className="mt-1 text-viaje-soft">Reference Number: <strong className="text-viaje-navy">{selectedPaymentMethod.referenceNumber}</strong></p>
+                          <PaymentMethodDetails
+                            method={selectedPaymentMethod}
+                            referenceAction={(
+                              <button
+                                type="button"
+                                onClick={() => copyPaymentReference(selectedPaymentMethod.referenceNumber)}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-viaje-line bg-white text-viaje-navy transition hover:bg-viaje-paperAlt"
+                                aria-label="Copy payment reference number"
+                                title="Copy reference number"
+                              >
+                                {copyState === "Reference number copied." ? <Check className="h-3.5 w-3.5 text-viaje-red" /> : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                          />
+                          <div>
+                            {copyState && <p className="mt-2 text-xs font-medium text-viaje-red">{copyState}</p>}
                           </div>
                           <div className="max-w-[220px]">
                             <span className={labelClass}>Proof of Payment Screenshot</span>

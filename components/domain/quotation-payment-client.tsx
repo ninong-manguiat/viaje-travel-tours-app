@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
+import { PaymentMethodButtonContent, PaymentMethodDetails, PaymentMethodQrImage } from "@/components/domain/payment-method-display";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,19 +112,18 @@ export function QuotationPaymentClient({ quotation, paymentMethods, token }: { q
                       {paymentMethods.map((method) => (
                         <button key={method.id} type="button" onClick={() => setPaymentMethodId(method.id)} className="text-left">
                           <Card className={`rounded-lg transition ${method.id === paymentMethodId ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
-                            <CardContent className="p-4 font-semibold text-viaje-navy">{method.bank}</CardContent>
+                            <CardContent className="p-0">
+                              <PaymentMethodButtonContent method={method} />
+                            </CardContent>
                           </Card>
                         </button>
                       ))}
                     </div>
                     {selectedPaymentMethod && (
-                      <div className="grid gap-5 md:grid-cols-[180px_1fr]">
-                        <img src={selectedPaymentMethod.qrImageUrl} alt={`${selectedPaymentMethod.bank} payment QR`} className="aspect-square w-full rounded-lg border border-viaje-line object-cover" />
+                      <div className={`grid gap-5 ${selectedPaymentMethod.qrImageUrl ? "md:grid-cols-[180px_1fr]" : ""}`}>
+                        <PaymentMethodQrImage method={selectedPaymentMethod} />
                         <div className="space-y-4">
-                          <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
-                            <p className="font-semibold text-viaje-navy">{selectedPaymentMethod.bank}</p>
-                            <p className="mt-1 text-viaje-soft">Reference Number: <strong className="text-viaje-navy">{selectedPaymentMethod.referenceNumber}</strong></p>
-                          </div>
+                          <PaymentMethodDetails method={selectedPaymentMethod} />
                           <label className={fieldClass}><span className={labelClass}>Notes</span><Input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
                         </div>
                       </div>

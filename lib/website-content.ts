@@ -76,6 +76,11 @@ export interface CmsProofTransaction {
   galleryUrls: string[];
 }
 
+export interface CmsBusinessLegitimacyDocument {
+  name: string;
+  fileUrl: string;
+}
+
 export interface WebsiteContent {
   services: {
     sectionDescription: string;
@@ -111,6 +116,11 @@ export interface WebsiteContent {
     sectionDescription: string;
     sectionDescriptionSubs: string;
     proofs: CmsProofTransaction[];
+  };
+  businessLegitimacy: {
+    sectionDescription: string;
+    sectionDescriptionSubs: string;
+    documents: CmsBusinessLegitimacyDocument[];
   };
 }
 
@@ -177,6 +187,11 @@ export const defaultWebsiteContent: WebsiteContent = {
         galleryUrls: []
       }
     ]
+  },
+  businessLegitimacy: {
+    sectionDescription: "Trust and Credibility",
+    sectionDescriptionSubs: "Permits, registrations, certificates, and accreditations that support every Viaje transaction.",
+    documents: []
   }
 };
 
@@ -204,7 +219,8 @@ export function mergeWebsiteContent(content?: Partial<WebsiteContent> | null): W
     },
     clients: { ...defaultWebsiteContent.clients, ...content?.clients },
     recentActivities: { ...defaultWebsiteContent.recentActivities, ...content?.recentActivities },
-    proofTransactions: { ...defaultWebsiteContent.proofTransactions, ...content?.proofTransactions }
+    proofTransactions: { ...defaultWebsiteContent.proofTransactions, ...content?.proofTransactions },
+    businessLegitimacy: { ...defaultWebsiteContent.businessLegitimacy, ...content?.businessLegitimacy }
   };
 }
 
