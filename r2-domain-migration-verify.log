@@ -1,0 +1,14 @@
+R2 public domain migration - VERIFY
+Environment: qa
+Old domain: https://pub-0330102d080f445d890536175c67ae34.r2.dev
+New domain: https://media.viajetravelandtours.com
+Collections: bookingDrafts, bookings, documentBins, emailLogs, packages, paymentMethods, payments, quotationItems, quotations, transactions, users, websiteContent
+
+
+Summary
+Documents scanned: 173
+Documents containing old R2 URLs: 0
+Total URL occurrences found: 0
+Documents that would be updated: 0
+Failures: 0
+Verification passed: 0 old-domain occurrences found.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ExternalLink, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, FileDown, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -275,6 +275,10 @@ export function QuotationBuilderManagement() {
     return quotation.paymentToken ? `${publicBaseUrl()}/payment/quotation/${quotation.paymentToken}` : "";
   }
 
+  function downloadQuotation(quotation: Quotation) {
+    window.open(`/api/admin/quotations/${encodeURIComponent(quotation.id)}/pdf`, "_blank", "noopener,noreferrer");
+  }
+
   async function copy(value: string) {
     await navigator.clipboard.writeText(value);
     setStatus("Link copied.");
@@ -327,6 +331,7 @@ export function QuotationBuilderManagement() {
                   <TD>
                     <div className="flex flex-wrap justify-end gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => startEdit(quotation)}><Pencil className="h-3.5 w-3.5" />Edit</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => downloadQuotation(quotation)}><FileDown className="h-3.5 w-3.5" />Download Quotation</Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => copy(quotationUrl(quotation))}><Copy className="h-3.5 w-3.5" />Copy</Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => window.open(quotationUrl(quotation), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Open</Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => sendEmail(quotation)} disabled={sendingId === quotation.id}>

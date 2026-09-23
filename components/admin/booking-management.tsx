@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, ExternalLink, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, FileDown, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -471,6 +471,11 @@ export function BookingManagement() {
     window.open(customerBookingLink(selected), "_blank", "noopener,noreferrer");
   }
 
+  function downloadBookingPdf(kind: "itinerary" | "acknowledgement-receipt") {
+    if (!selected) return;
+    window.open(`/api/admin/bookings/${encodeURIComponent(selected.id)}/${kind}-pdf`, "_blank", "noopener,noreferrer");
+  }
+
   async function sendConfirmationEmail() {
     if (!selected || sendingConfirmation) return;
 
@@ -531,6 +536,8 @@ export function BookingManagement() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button type="button" size="sm" variant="outline" onClick={copyCustomerLink}><Copy className="h-3.5 w-3.5" />Copy Client Link</Button>
                 <Button type="button" size="sm" variant="outline" onClick={openCustomerLink}><ExternalLink className="h-3.5 w-3.5" />Open Link</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("itinerary")}><FileDown className="h-3.5 w-3.5" />Download Itinerary</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("acknowledgement-receipt")}><FileDown className="h-3.5 w-3.5" />Download Acknowledgement Receipt</Button>
                 <Button type="button" size="sm" variant="outline" onClick={sendConfirmationEmail} disabled={sendingConfirmation}>
                   <Mail className="h-3.5 w-3.5" />{sendingConfirmation ? "Sending..." : "Send Email"}
                 </Button>
