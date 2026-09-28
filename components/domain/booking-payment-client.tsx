@@ -141,12 +141,12 @@ export function BookingPaymentClient({
                               aria-label="Copy payment reference number"
                               title="Copy reference number"
                             >
-                              {copyState === "Reference number copied." ? <Check className="h-3.5 w-3.5 text-viaje-red" /> : <Copy className="h-3.5 w-3.5" />}
+                              {copyState === "Reference number copied." ? <Check className="h-3.5 w-3.5 text-viaje-green" /> : <Copy className="h-3.5 w-3.5" />}
                             </button>
                           )}
                         />
                         <div>
-                          {copyState && <p className="mt-2 text-xs font-medium text-viaje-red">{copyState}</p>}
+                          {copyState && <p className={`mt-2 text-xs font-medium ${copyState === "Reference number copied." ? "text-viaje-green" : "text-viaje-red"}`}>{copyState}</p>}
                         </div>
                         <label className={fieldClass}><span className={labelClass}>Notes</span><Input value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
                       </div>

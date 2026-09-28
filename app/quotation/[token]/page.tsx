@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { FileDown } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getQuotationByToken } from "@/lib/quotations";
@@ -19,7 +20,16 @@ export default async function PublicQuotationPage({ params }: { params: { token:
             <h1 className="mt-3 font-serif text-4xl font-bold text-viaje-navy">Quotation</h1>
             <p className="mt-2 text-viaje-soft">This quotation is prepared for review and is not a confirmed booking.</p>
           </div>
-          <StatusBadge status={quotation.status} />
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            <a
+              href={`/api/quotations/${encodeURIComponent(params.token)}/pdf`}
+              className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border-[1.5px] border-transparent bg-viaje-red px-6 py-3 text-sm font-semibold text-white transition duration-150 hover:-translate-y-0.5 hover:bg-viaje-red2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <FileDown className="h-4 w-4" />
+              Download Quotation
+            </a>
+            <StatusBadge status={quotation.status} />
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">

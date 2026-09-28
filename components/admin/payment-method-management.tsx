@@ -22,6 +22,7 @@ const emptyPaymentMethod: PaymentMethod = {
 const fieldClass = "grid gap-1.5";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
 type PaymentMethodErrors = Partial<Record<"bank" | "accountName" | "referenceNumber", string>>;
+type PaymentMethodTouched = Partial<Record<"bank" | "accountName" | "referenceNumber", boolean>>;
 
 export function PaymentMethodManagement() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -35,6 +36,8 @@ export function PaymentMethodManagement() {
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [paymentMethodTouched, setPaymentMethodTouched] = useState<PaymentMethodTouched>({});
+  const [paymentMethodSubmitted, setPaymentMethodSubmitted] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -68,12 +71,16 @@ export function PaymentMethodManagement() {
   function startCreate() {
     setStatus("");
     setModalError("");
+    setPaymentMethodTouched({});
+    setPaymentMethodSubmitted(false);
     setEditing({ ...emptyPaymentMethod });
   }
 
   function closeModal() {
     setEditing(null);
     setModalError("");
+    setPaymentMethodTouched({});
+    setPaymentMethodSubmitted(false);
   }
 
   function validatePaymentMethodForm(method: PaymentMethod | null) {
@@ -91,6 +98,7 @@ export function PaymentMethodManagement() {
   async function savePaymentMethod() {
     if (!editing) return;
 
+    setPaymentMethodSubmitted(true);
     if (paymentMethodInvalid) return;
 
     setModalError("");
@@ -129,6 +137,10 @@ export function PaymentMethodManagement() {
 
   function updateEditing(value: Partial<PaymentMethod>) {
     setEditing((current) => current ? { ...current, ...value } : current);
+  }
+
+  function touchPaymentMethodField(field: keyof PaymentMethodTouched) {
+    setPaymentMethodTouched((current) => ({ ...current, [field]: true }));
   }
 
   return (
@@ -178,7 +190,7 @@ export function PaymentMethodManagement() {
                   </TD>
                   <TD>
                     <div className="flex justify-end gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => { setModalError(""); setEditing(paymentMethod); }}>
+                      <Button type="button" size="sm" variant="outline" onClick={() => { setModalError(""); setPaymentMethodTouched({}); setPaymentMethodSubmitted(false); setEditing(paymentMethod); }}>
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
                       <Button type="button" size="sm" variant="ghost" className="text-viaje-red" onClick={() => removePaymentMethod(paymentMethod)} aria-label={`Delete ${paymentMethod.bank}`}>
@@ -214,18 +226,18 @@ export function PaymentMethodManagement() {
                   <div className="grid gap-4">
                     <label className={fieldClass}>
                       <span className={labelClass}>Bank</span>
-                      <Input required value={editing.bank} onChange={(event) => updateEditing({ bank: event.target.value })} />
-                      {paymentMethodErrors.bank && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.bank}</span>}
+                      <Input required value={editing.bank} onBlur={() => touchPaymentMethodField("bank")} onChange={(event) => updateEditing({ bank: event.target.value })} />
+                      {(paymentMethodSubmitted || paymentMethodTouched.bank) && paymentMethodErrors.bank && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.bank}</span>}
                     </label>
                     <label className={fieldClass}>
                       <span className={labelClass}>Account Name</span>
-                      <Input required value={editing.accountName} onChange={(event) => updateEditing({ accountName: event.target.value })} />
-                      {paymentMethodErrors.accountName && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.accountName}</span>}
+                      <Input required value={editing.accountName} onBlur={() => touchPaymentMethodField("accountName")} onChange={(event) => updateEditing({ accountName: event.target.value })} />
+                      {(paymentMethodSubmitted || paymentMethodTouched.accountName) && paymentMethodErrors.accountName && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.accountName}</span>}
                     </label>
                     <label className={fieldClass}>
                       <span className={labelClass}>Reference Number</span>
-                      <Input required value={editing.referenceNumber} onChange={(event) => updateEditing({ referenceNumber: event.target.value })} />
-                      {paymentMethodErrors.referenceNumber && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.referenceNumber}</span>}
+                      <Input required value={editing.referenceNumber} onBlur={() => touchPaymentMethodField("referenceNumber")} onChange={(event) => updateEditing({ referenceNumber: event.target.value })} />
+                      {(paymentMethodSubmitted || paymentMethodTouched.referenceNumber) && paymentMethodErrors.referenceNumber && <span className="text-xs font-medium text-viaje-red">{paymentMethodErrors.referenceNumber}</span>}
                     </label>
                   </div>
                   <div>
@@ -247,7 +259,7 @@ export function PaymentMethodManagement() {
               {modalError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{modalError}</p>}
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
-                <Button type="button" onClick={savePaymentMethod} disabled={saving || paymentMethodInvalid}>{saving ? "Saving..." : "Save Payment Method"}</Button>
+                <Button type="button" onClick={savePaymentMethod} disabled={saving}>{saving ? "Saving..." : "Save Payment Method"}</Button>
               </div>
             </div>
           </div>

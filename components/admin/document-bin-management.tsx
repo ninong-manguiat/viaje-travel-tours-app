@@ -38,6 +38,7 @@ type LinkedBookingContext = {
 };
 
 type CreateErrors = Partial<Record<"clientName" | "email" | "contactNumber" | "purpose" | "requirements" | "submit", string>>;
+type CreateTouched = Partial<Record<"clientName" | "email" | "contactNumber" | "purpose" | "requirements", boolean>>;
 
 const emptyRequirement = (): RequirementDraft => ({
   id: `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -104,10 +105,12 @@ function RequirementEditor({
   requirements,
   onChange,
   existingRequirements = [],
+  showValidation = true,
 }: {
   requirements: RequirementDraft[];
   onChange: (requirements: RequirementDraft[]) => void;
   existingRequirements?: DocumentRequirement[];
+  showValidation?: boolean;
 }) {
   function updateRequirement(id: string, value: Partial<RequirementDraft>) {
     onChange(requirements.map((item) => item.id === id ? { ...item, ...value } : item));
@@ -182,7 +185,7 @@ function RequirementEditor({
                 ))}
               </div>
             </div>
-            {duplicate && <p className="text-sm text-viaje-red">Duplicate predefined requirements are not allowed.</p>}
+            {showValidation && duplicate && <p className="text-sm text-viaje-red">Duplicate predefined requirements are not allowed.</p>}
           </div>
         );
       })}
@@ -212,6 +215,9 @@ export function DocumentBinManagement() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [createError, setCreateError] = useState("");
+  const [createTouched, setCreateTouched] = useState<CreateTouched>({});
+  const [createSubmitted, setCreateSubmitted] = useState(false);
+  const [addRequirementSubmitted, setAddRequirementSubmitted] = useState(false);
   const searchMounted = useRef(false);
 
   useEffect(() => {
@@ -272,6 +278,9 @@ export function DocumentBinManagement() {
     if (!shouldCreate || !bookingId) return;
 
     setShowCreate(true);
+    setCreateTouched({});
+    setCreateSubmitted(false);
+    setCreateError("");
     fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load linked booking")))
       .then((data) => {
@@ -292,7 +301,27 @@ export function DocumentBinManagement() {
     setRequirements([emptyRequirement()]);
     setLinkedBooking(null);
     setCreateError("");
+    setCreateTouched({});
+    setCreateSubmitted(false);
     setShowCreate(false);
+  }
+
+  function validateRequirementDrafts(items: RequirementDraft[], existingRequirements: DocumentRequirement[] = []) {
+    if (!items.length) return "At least one document requirement is required.";
+    const seen = new Set<DocumentType>();
+    for (const existing of existingRequirements) {
+      if (existing.documentType !== "Other") seen.add(existing.documentType);
+    }
+
+    for (const item of items) {
+      if (item.documentType !== "Other") {
+        if (seen.has(item.documentType)) return "Duplicate predefined requirements are not allowed.";
+        seen.add(item.documentType);
+      }
+      if (item.documentType === "Other" && !item.customName.trim()) return "Custom document name is required.";
+      if (!item.acceptedFileTypes.length) return "Accepted file types are required.";
+    }
+    return "";
   }
 
   function validateForm(items: RequirementDraft[]): CreateErrors {
@@ -306,37 +335,33 @@ export function DocumentBinManagement() {
     if (!contactNumber) errors.contactNumber = "Contact number is required.";
     else if (!isValidContactNumber(contactNumber)) errors.contactNumber = "Enter a valid +63 mobile number.";
     if (!form.purpose.trim()) errors.purpose = "Purpose is required.";
-    if (!items.length) {
-      errors.requirements = "At least one document requirement is required.";
-      return errors;
-    }
-
-    const seen = new Set<DocumentType>();
-    for (const item of items) {
-      if (item.documentType !== "Other") {
-        if (seen.has(item.documentType)) {
-          errors.requirements = "Duplicate predefined requirements are not allowed.";
-          return errors;
-        }
-        seen.add(item.documentType);
-      }
-      if (item.documentType === "Other" && !item.customName.trim()) {
-        errors.requirements = "Custom document name is required.";
-        return errors;
-      }
-      if (!item.acceptedFileTypes.length) {
-        errors.requirements = "Accepted file types are required.";
-        return errors;
-      }
-    }
+    errors.requirements = validateRequirementDrafts(items) || undefined;
     return errors;
   }
 
   const createErrors = useMemo(() => showCreate ? validateForm(requirements) : {}, [form, requirements, showCreate]);
-  const createIsInvalid = Object.values(createErrors).some(Boolean);
+  const addRequirementError = useMemo(() => selected ? validateRequirementDrafts(newRequirements, selected.requirements) : "", [newRequirements, selected]);
+
+  function touchCreateField(field: keyof CreateTouched) {
+    setCreateTouched((current) => ({ ...current, [field]: true }));
+  }
+
+  function startCreate() {
+    setLinkedBooking(null);
+    setCreateError("");
+    setCreateTouched({});
+    setCreateSubmitted(false);
+    setShowCreate(true);
+  }
+
+  function updateCreateRequirements(items: RequirementDraft[]) {
+    setCreateTouched((current) => ({ ...current, requirements: true }));
+    setRequirements(items);
+  }
 
   async function createBin() {
     const errors = validateForm(requirements);
+    setCreateSubmitted(true);
     if (Object.values(errors).some(Boolean)) {
       return;
     }
@@ -395,8 +420,11 @@ export function DocumentBinManagement() {
 
   async function addRequirement() {
     if (!selected || !newRequirements[0]) return;
+    setAddRequirementSubmitted(true);
+    if (addRequirementError) return;
     const item = newRequirements[0];
     await updateSelected("addRequirement", { requirement: item });
+    setAddRequirementSubmitted(false);
     setNewRequirements([]);
   }
 
@@ -443,7 +471,7 @@ export function DocumentBinManagement() {
           <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-viaje-navy">Documents</h1>
         </div>
-        <Button type="button" onClick={() => { setLinkedBooking(null); setCreateError(""); setShowCreate(true); }}><Plus className="h-4 w-4" />Create Document Bin</Button>
+        <Button type="button" onClick={startCreate}><Plus className="h-4 w-4" />Create Document Bin</Button>
       </div>
 
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
@@ -522,37 +550,37 @@ export function DocumentBinManagement() {
                   )}
                   <label className="grid gap-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Client Name</span>
-                    <Input value={form.clientName} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} />
-                    {createErrors.clientName && <span className="text-xs font-medium text-viaje-red">{createErrors.clientName}</span>}
+                    <Input value={form.clientName} onBlur={() => touchCreateField("clientName")} onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))} />
+                    {(createSubmitted || createTouched.clientName) && createErrors.clientName && <span className="text-xs font-medium text-viaje-red">{createErrors.clientName}</span>}
                   </label>
                   <label className="grid gap-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Email</span>
-                    <Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
-                    {createErrors.email && <span className="text-xs font-medium text-viaje-red">{createErrors.email}</span>}
+                    <Input type="email" value={form.email} onBlur={() => touchCreateField("email")} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+                    {(createSubmitted || createTouched.email) && createErrors.email && <span className="text-xs font-medium text-viaje-red">{createErrors.email}</span>}
                   </label>
                   <label className="grid gap-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Contact Number</span>
-                    <Input value={form.contactNumber || "+63"} onChange={(event) => setForm((current) => ({ ...current, contactNumber: normalizeContactNumber(event.target.value) }))} />
-                    {createErrors.contactNumber && <span className="text-xs font-medium text-viaje-red">{createErrors.contactNumber}</span>}
+                    <Input value={form.contactNumber || "+63"} onBlur={() => touchCreateField("contactNumber")} onChange={(event) => setForm((current) => ({ ...current, contactNumber: normalizeContactNumber(event.target.value) }))} />
+                    {(createSubmitted || createTouched.contactNumber) && createErrors.contactNumber && <span className="text-xs font-medium text-viaje-red">{createErrors.contactNumber}</span>}
                   </label>
                   <label className="grid gap-1.5">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Purpose</span>
-                    <Input value={form.purpose} onChange={(event) => setForm((current) => ({ ...current, purpose: event.target.value }))} placeholder="Japan Visa Requirements" />
-                    {createErrors.purpose && <span className="text-xs font-medium text-viaje-red">{createErrors.purpose}</span>}
+                    <Input value={form.purpose} onBlur={() => touchCreateField("purpose")} onChange={(event) => setForm((current) => ({ ...current, purpose: event.target.value }))} placeholder="Japan Visa Requirements" />
+                    {(createSubmitted || createTouched.purpose) && createErrors.purpose && <span className="text-xs font-medium text-viaje-red">{createErrors.purpose}</span>}
                   </label>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader><CardTitle>Document Requirements</CardTitle></CardHeader>
                 <CardContent className="grid gap-3">
-                  <RequirementEditor requirements={requirements} onChange={setRequirements} />
-                  {createErrors.requirements && <p className="text-sm font-medium text-viaje-red">{createErrors.requirements}</p>}
+                  <RequirementEditor requirements={requirements} onChange={updateCreateRequirements} showValidation={Boolean(createSubmitted || createTouched.requirements)} />
+                  {(createSubmitted || createTouched.requirements) && createErrors.requirements && <p className="text-sm font-medium text-viaje-red">{createErrors.requirements}</p>}
                 </CardContent>
               </Card>
               {createError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{createError}</p>}
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={resetCreate}>Cancel</Button>
-                <Button type="button" onClick={createBin} disabled={saving || createIsInvalid}>{saving ? "Creating..." : "Create Document Bin"}</Button>
+                <Button type="button" onClick={createBin} disabled={saving}>{saving ? "Creating..." : "Create Document Bin"}</Button>
               </div>
             </div>
           </div>
@@ -646,12 +674,13 @@ export function DocumentBinManagement() {
                 <CardHeader><CardTitle>Manage Requirements</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   {!newRequirements.length ? (
-                    <Button type="button" variant="outline" onClick={() => setNewRequirements([emptyRequirement()])}><Plus className="h-4 w-4" />Add Requirement</Button>
+                    <Button type="button" variant="outline" onClick={() => { setAddRequirementSubmitted(false); setNewRequirements([emptyRequirement()]); }}><Plus className="h-4 w-4" />Add Requirement</Button>
                   ) : (
                     <>
-                      <RequirementEditor requirements={newRequirements} onChange={(items) => setNewRequirements(items.slice(0, 1))} existingRequirements={selected.requirements} />
+                      <RequirementEditor requirements={newRequirements} onChange={(items) => setNewRequirements(items.slice(0, 1))} existingRequirements={selected.requirements} showValidation={addRequirementSubmitted} />
+                      {addRequirementSubmitted && addRequirementError && <p className="text-sm font-medium text-viaje-red">{addRequirementError}</p>}
                       <div className="flex justify-end gap-3">
-                        <Button type="button" variant="outline" onClick={() => setNewRequirements([])}>Cancel</Button>
+                        <Button type="button" variant="outline" onClick={() => { setAddRequirementSubmitted(false); setNewRequirements([]); }}>Cancel</Button>
                         <Button type="button" onClick={addRequirement}>Save Requirement</Button>
                       </div>
                     </>

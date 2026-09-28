@@ -38,13 +38,24 @@ function numberValue(value: unknown) {
 }
 
 function safeDate(value: unknown) {
-  const text = String(value || "");
-  if (!text) return "N/A";
+  if (!value) return "N/A";
+  let date: Date | null = null;
+  if (value instanceof Date) date = value;
+  else if (typeof value === "string" || typeof value === "number") date = new Date(value);
+  else if (typeof value === "object" && "toDate" in value && typeof value.toDate === "function") date = value.toDate();
+  else if (typeof value === "object" && "seconds" in value && typeof value.seconds === "number") date = new Date(value.seconds * 1000);
+  else if (typeof value === "object" && "_seconds" in value && typeof value._seconds === "number") date = new Date(value._seconds * 1000);
+
+  if (!date || Number.isNaN(date.getTime())) return "N/A";
   try {
-    return formatDate(text);
+    return formatDate(date);
   } catch {
-    return text;
+    return "N/A";
   }
+}
+
+function pdfText(value: unknown) {
+  return String(value ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
 function formatPdfPeso(value: number) {
@@ -232,9 +243,14 @@ export async function itineraryPdfResponse(bookingId: string) {
   pdf.section("Itinerary");
   if (pkg?.itinerary?.length) {
     pkg.itinerary.forEach((item) => {
-      pdf.paragraph([item.day, item.name].filter(Boolean).join(" - "), 10);
-      const activities = item.activities.map((activity) => activity.activity).filter(Boolean).join("; ");
-      if (activities) pdf.paragraph(activities, 8.8);
+      const dayTitle = [pdfText(item.day), pdfText(item.name)].filter(Boolean).join(" - ");
+      pdf.heading(dayTitle || "Itinerary Day", 10);
+      const activities = item.activities.map((activity) => pdfText(activity.activity)).filter(Boolean);
+      if (activities.length) {
+        activities.forEach((activity) => pdf.bullet(activity, 8.8));
+      } else {
+        pdf.paragraph("No activities listed for this day.", 8.8);
+      }
     });
   } else {
     pdf.paragraph("Itinerary details are not available for this package yet.");

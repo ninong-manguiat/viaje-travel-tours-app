@@ -73,11 +73,15 @@ const emptyQuotation: Quotation = {
 };
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
-const fieldClass = "grid gap-1.5";
-const inputClass = "h-12 rounded-[10px] border border-viaje-line bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-viaje-red/20";
+const fieldClass = "grid gap-2";
+const quotationInputClass = "h-12 bg-white px-3.5 py-3";
+const inputClass = "h-12 rounded-[10px] border border-viaje-line bg-white px-3.5 py-3 text-sm text-viaje-ink outline-none focus:ring-2 focus:ring-viaje-red/20";
+const errorClass = "mt-0.5 text-xs font-medium leading-5 text-viaje-red";
 type QuotationErrors = Partial<Record<"clientName" | "email" | "contactNumber" | "items", string>> & {
   itemErrors: Array<Partial<Record<"customName" | "remarks" | "amount", string>>>;
 };
+type QuotationTouched = Partial<Record<"clientName" | "email" | "contactNumber" | "items", boolean>>;
+type QuotationItemTouched = Record<string, Partial<Record<"customName" | "remarks" | "amount", boolean>>>;
 
 function newItem(sortOrder: number): QuotationItem {
   return {
@@ -118,6 +122,9 @@ export function QuotationBuilderManagement() {
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [quotationTouched, setQuotationTouched] = useState<QuotationTouched>({});
+  const [quotationItemTouched, setQuotationItemTouched] = useState<QuotationItemTouched>({});
+  const [quotationSubmitted, setQuotationSubmitted] = useState(false);
   const searchMounted = useRef(false);
 
   useEffect(() => {
@@ -171,12 +178,18 @@ export function QuotationBuilderManagement() {
   function startCreate() {
     setStatus("");
     setModalError("");
+    setQuotationTouched({});
+    setQuotationItemTouched({});
+    setQuotationSubmitted(false);
     setEditing({ ...emptyQuotation, items: [newItem(0)] });
   }
 
   async function startEdit(quotation: Quotation) {
     setStatus("");
     setModalError("");
+    setQuotationTouched({});
+    setQuotationItemTouched({});
+    setQuotationSubmitted(false);
     const response = await fetch(`/api/admin/quotations/${quotation.id}`);
     if (!response.ok) {
       setStatus("Unable to load quotation details.");
@@ -189,10 +202,24 @@ export function QuotationBuilderManagement() {
   function closeModal() {
     setEditing(null);
     setModalError("");
+    setQuotationTouched({});
+    setQuotationItemTouched({});
+    setQuotationSubmitted(false);
   }
 
   function updateEditing(values: Partial<Quotation>) {
     setEditing((current) => current ? { ...current, ...values } : current);
+  }
+
+  function touchQuotationField(field: keyof QuotationTouched) {
+    setQuotationTouched((current) => ({ ...current, [field]: true }));
+  }
+
+  function touchQuotationItemField(itemId: string, field: "customName" | "remarks" | "amount") {
+    setQuotationItemTouched((current) => ({
+      ...current,
+      [itemId]: { ...current[itemId], [field]: true },
+    }));
   }
 
   function updateItem(index: number, values: Partial<QuotationItem>) {
@@ -241,6 +268,7 @@ export function QuotationBuilderManagement() {
 
   async function saveQuotation() {
     if (!editing) return;
+    setQuotationSubmitted(true);
     if (quotationInvalid) return;
 
     setModalError("");
@@ -404,18 +432,18 @@ export function QuotationBuilderManagement() {
                 <CardContent className="grid gap-4 md:grid-cols-3">
                   <label className={fieldClass}>
                     <span className={labelClass}>Client Name</span>
-                    <Input required value={editing.clientName} onChange={(event) => updateEditing({ clientName: event.target.value })} />
-                    {quotationErrors.clientName && <span className="text-xs font-medium text-viaje-red">{quotationErrors.clientName}</span>}
+                    <Input required className={quotationInputClass} value={editing.clientName} onBlur={() => touchQuotationField("clientName")} onChange={(event) => updateEditing({ clientName: event.target.value })} />
+                    {(quotationSubmitted || quotationTouched.clientName) && quotationErrors.clientName && <span className={errorClass}>{quotationErrors.clientName}</span>}
                   </label>
                   <label className={fieldClass}>
                     <span className={labelClass}>Email</span>
-                    <Input required type="email" value={editing.email} onChange={(event) => updateEditing({ email: event.target.value })} />
-                    {quotationErrors.email && <span className="text-xs font-medium text-viaje-red">{quotationErrors.email}</span>}
+                    <Input required type="email" className={quotationInputClass} value={editing.email} onBlur={() => touchQuotationField("email")} onChange={(event) => updateEditing({ email: event.target.value })} />
+                    {(quotationSubmitted || quotationTouched.email) && quotationErrors.email && <span className={errorClass}>{quotationErrors.email}</span>}
                   </label>
                   <label className={fieldClass}>
                     <span className={labelClass}>Contact Number</span>
-                    <Input required value={editing.contactNumber || "+63"} onChange={(event) => updateEditing({ contactNumber: normalizeContactNumber(event.target.value) })} />
-                    {quotationErrors.contactNumber && <span className="text-xs font-medium text-viaje-red">{quotationErrors.contactNumber}</span>}
+                    <Input required className={quotationInputClass} value={editing.contactNumber || "+63"} onBlur={() => touchQuotationField("contactNumber")} onChange={(event) => updateEditing({ contactNumber: normalizeContactNumber(event.target.value) })} />
+                    {(quotationSubmitted || quotationTouched.contactNumber) && quotationErrors.contactNumber && <span className={errorClass}>{quotationErrors.contactNumber}</span>}
                   </label>
                 </CardContent>
               </Card>
@@ -428,11 +456,12 @@ export function QuotationBuilderManagement() {
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {quotationErrors.items && <p className="text-sm font-medium text-viaje-red">{quotationErrors.items}</p>}
+                  {(quotationSubmitted || quotationTouched.items) && quotationErrors.items && <p className="text-sm font-medium text-viaje-red">{quotationErrors.items}</p>}
                   {editing.items.map((item, index) => {
                     const itemErrors = quotationErrors.itemErrors[index] ?? {};
+                    const touched = quotationItemTouched[item.id] ?? {};
                     return (
-                      <div key={item.id} className="grid gap-4 rounded-[10px] border border-viaje-line bg-viaje-paper p-4 lg:grid-cols-[180px_1fr_140px_40px]">
+                      <div key={item.id} className="grid gap-4 rounded-[10px] border border-viaje-line bg-viaje-paper p-4 lg:grid-cols-[200px_minmax(0,1fr)_160px_44px] lg:items-start">
                         <label className={fieldClass}>
                           <span className={labelClass}>Service / Item Type</span>
                           <select value={item.type} onChange={(event) => updateItem(index, { type: event.target.value as QuotationItemType })} className={inputClass}>
@@ -441,26 +470,31 @@ export function QuotationBuilderManagement() {
                         </label>
                         <label className={fieldClass}>
                           <span className={labelClass}>{item.type === "Other" ? "Custom Item Name" : "Remarks"}</span>
-                          <Input value={item.type === "Other" ? item.customName : item.remarks} onChange={(event) => updateItem(index, item.type === "Other" ? { customName: event.target.value } : { remarks: event.target.value })} />
+                          <Input
+                            className={quotationInputClass}
+                            value={item.type === "Other" ? item.customName : item.remarks}
+                            onBlur={() => touchQuotationItemField(item.id, item.type === "Other" ? "customName" : "remarks")}
+                            onChange={(event) => updateItem(index, item.type === "Other" ? { customName: event.target.value } : { remarks: event.target.value })}
+                          />
                           {item.type === "Other" ? (
-                            itemErrors.customName && <span className="text-xs font-medium text-viaje-red">{itemErrors.customName}</span>
+                            (quotationSubmitted || touched.customName) && itemErrors.customName && <span className={errorClass}>{itemErrors.customName}</span>
                           ) : (
-                            itemErrors.remarks && <span className="text-xs font-medium text-viaje-red">{itemErrors.remarks}</span>
+                            (quotationSubmitted || touched.remarks) && itemErrors.remarks && <span className={errorClass}>{itemErrors.remarks}</span>
                           )}
                         </label>
                         <label className={fieldClass}>
                           <span className={labelClass}>Amount</span>
-                          <Input type="number" min="0" step="1" value={item.amount || ""} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
-                          {itemErrors.amount && <span className="text-xs font-medium text-viaje-red">{itemErrors.amount}</span>}
+                          <Input type="number" min="0" step="1" className={quotationInputClass} value={item.amount || ""} onBlur={() => touchQuotationItemField(item.id, "amount")} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
+                          {(quotationSubmitted || touched.amount) && itemErrors.amount && <span className={errorClass}>{itemErrors.amount}</span>}
                         </label>
-                        <button type="button" onClick={() => removeItem(index)} className="mt-6 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
+                        <button type="button" onClick={() => removeItem(index)} className="mt-7 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
                           <Trash2 className="h-4 w-4" />
                         </button>
                         {item.type === "Other" && (
                           <label className={`${fieldClass} lg:col-span-4`}>
                             <span className={labelClass}>Remarks</span>
-                            <Input value={item.remarks} onChange={(event) => updateItem(index, { remarks: event.target.value })} />
-                            {itemErrors.remarks && <span className="text-xs font-medium text-viaje-red">{itemErrors.remarks}</span>}
+                            <Input className={quotationInputClass} value={item.remarks} onBlur={() => touchQuotationItemField(item.id, "remarks")} onChange={(event) => updateItem(index, { remarks: event.target.value })} />
+                            {(quotationSubmitted || touched.remarks) && itemErrors.remarks && <span className={errorClass}>{itemErrors.remarks}</span>}
                           </label>
                         )}
                       </div>
@@ -475,7 +509,7 @@ export function QuotationBuilderManagement() {
               {modalError && <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-3 text-sm font-medium text-viaje-red">{modalError}</p>}
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={closeModal}>Cancel</Button>
-                <Button type="button" onClick={saveQuotation} disabled={saving || quotationInvalid}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Quotation"}</Button>
+                <Button type="button" onClick={saveQuotation} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : "Save Quotation"}</Button>
               </div>
             </div>
           </div>

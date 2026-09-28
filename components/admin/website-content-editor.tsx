@@ -1141,26 +1141,30 @@ export function WebsiteContentEditor() {
               removeLabel="Remove this document"
               onRemove={() => section("businessLegitimacy", { ...content.businessLegitimacy, documents: content.businessLegitimacy.documents.filter((_, itemIndex) => itemIndex !== index) })}
             >
-              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_300px] md:items-start">
-                <TextField
-                  label="Name"
-                  value={document.name}
-                  onChange={(value) => {
-                    const documents = [...content.businessLegitimacy.documents];
-                    documents[index] = { ...document, name: value };
-                    section("businessLegitimacy", { ...content.businessLegitimacy, documents });
-                  }}
-                />
-                <DocumentFileUpload
-                  label="File"
-                  folder="business-legitimacy"
-                  value={document.fileUrl}
-                  onChange={(fileUrl) => {
-                    const documents = [...content.businessLegitimacy.documents];
-                    documents[index] = { ...document, fileUrl };
-                    section("businessLegitimacy", { ...content.businessLegitimacy, documents });
-                  }}
-                />
+              <div className="grid gap-6 md:grid-cols-[minmax(180px,280px)_minmax(0,1fr)] md:items-start">
+                <div className="min-w-0">
+                  <TextField
+                    label="Name"
+                    value={document.name}
+                    onChange={(value) => {
+                      const documents = [...content.businessLegitimacy.documents];
+                      documents[index] = { ...document, name: value };
+                      section("businessLegitimacy", { ...content.businessLegitimacy, documents });
+                    }}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <DocumentFileUpload
+                    label="File"
+                    folder="business-legitimacy"
+                    value={document.fileUrl}
+                    onChange={(fileUrl) => {
+                      const documents = [...content.businessLegitimacy.documents];
+                      documents[index] = { ...document, fileUrl };
+                      section("businessLegitimacy", { ...content.businessLegitimacy, documents });
+                    }}
+                  />
+                </div>
               </div>
             </CmsItemAccordion>
           ))}

@@ -25,7 +25,7 @@ function escapePdfText(value: string) {
 }
 
 function safeText(value: unknown) {
-  return String(value ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, "?");
+  return String(value ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
 function textWidth(value: string, size: number) {
@@ -250,6 +250,27 @@ export class SimplePdf {
       this.y += size + 3;
     });
     this.y += 4;
+  }
+
+  heading(text: string, size = 10) {
+    const lines = wrapText(text, CONTENT_WIDTH, size);
+    this.ensure(lines.length * (size + 4) + 8);
+    lines.forEach((line) => {
+      this.textAt(line, MARGIN, this.y, size, "bold", "#0f2438");
+      this.y += size + 4;
+    });
+    this.y += 2;
+  }
+
+  bullet(text: string, size = 8.8) {
+    const bulletWidth = 12;
+    const lines = wrapText(text, CONTENT_WIDTH - bulletWidth, size);
+    this.ensure(lines.length * (size + 3) + 4);
+    this.textAt("-", MARGIN, this.y, size, "regular", "#64748b");
+    lines.forEach((line, lineIndex) => {
+      this.textAt(line, MARGIN + bulletWidth, this.y + lineIndex * (size + 3), size, "regular", "#0f2438");
+    });
+    this.y += lines.length * (size + 3) + 3;
   }
 
   table(headers: string[], rows: PdfRow[], widths: number[]) {
