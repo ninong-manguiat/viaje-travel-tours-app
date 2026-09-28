@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { logActivity } from "@/lib/activity-log";
 import { getQuotationByToken } from "@/lib/quotations";
 
 export async function POST(request: NextRequest, { params }: { params: { token: string } }) {
@@ -66,6 +67,18 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
   if (result === "already_submitted") {
     return NextResponse.json({ error: "A payment for this quotation has already been submitted." }, { status: 409 });
   }
+
+  await logActivity({
+    type: "payment.submitted",
+    module: "payments",
+    entityType: "payment",
+    entityId: paymentId,
+    reference: quotation.referenceNumber,
+    actorName: quotation.clientName,
+    description: `${quotation.clientName || "A customer"} submitted payment for quotation ${quotation.referenceNumber}.`,
+    href: "/admin/payments/verification",
+    metadata: { quotationId: quotation.id, amountSubmitted: quotation.totalAmount },
+  });
 
   return NextResponse.json({ payment });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { documentUploadId, fileTypeAllowed, maxDocumentUploadsPerRequirement, serializeDocumentBin, statusFromRequirements, type DocumentUpload } from "@/lib/document-bins";
+import { logActivity } from "@/lib/activity-log";
 import { deleteFile, uploadFile } from "@/lib/storage";
 
 function sanitizeFileName(name: string) {
@@ -45,6 +46,17 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
       : item);
 
     await bookingDoc.ref.set({ documentRequirements }, { merge: true });
+    await logActivity({
+      type: "documents.uploaded",
+      module: "documents",
+      entityType: "booking",
+      entityId: bookingDoc.id,
+      reference: String(booking.reference || bookingDoc.id),
+      actorName: "Client",
+      description: `Client uploaded a document for booking ${String(booking.reference || bookingDoc.id)}.`,
+      href: `/admin/bookings?bookingId=${encodeURIComponent(bookingDoc.id)}`,
+      metadata: { requirementId },
+    });
 
     return NextResponse.json({
       documentBin: {
@@ -152,6 +164,17 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
   const status = statusFromRequirements(requirements, bin.status);
 
   await doc.ref.set({ requirements, status, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await logActivity({
+    type: action === "delete" ? "documents.file_deleted" : action === "replace" ? "documents.file_replaced" : "documents.uploaded",
+    module: "documents",
+    entityType: "documentBin",
+    entityId: bin.id,
+    reference: bin.referenceNumber,
+    actorName: bin.clientName,
+    description: `${bin.clientName || "Client"} ${action === "delete" ? "deleted" : action === "replace" ? "replaced" : "uploaded"} document files for ${bin.referenceNumber}.`,
+    href: "/admin/documents",
+    metadata: { requirementId, fileCount: action === "delete" ? 1 : uploads.length },
+  });
 
   return NextResponse.json({ documentBin: { ...bin, requirements, status, updatedAt: new Date().toISOString() } });
 }

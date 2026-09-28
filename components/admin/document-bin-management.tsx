@@ -484,7 +484,7 @@ export function DocumentBinManagement() {
         <CardContent>
           <Table>
             <THead>
-              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Linked Booking ID</TH><TH>Created At</TH><TH>Progress</TH><TH>Status</TH><TH>Actions</TH></TR>
+              <TR><TH>Reference</TH><TH>Client Name</TH><TH>Linked Booking ID</TH><TH>Created At</TH><TH>Progress</TH><TH>Status</TH><TH className="w-[260px] text-right">Actions</TH></TR>
             </THead>
             <TBody>
               {loading && <TR><TD colSpan={7}>Loading document bins...</TD></TR>}
@@ -502,8 +502,8 @@ export function DocumentBinManagement() {
                     </div>
                   </TD>
                   <TD><StatusBadge status={bin.status} /></TD>
-                  <TD>
-                    <div className="flex flex-wrap justify-end gap-2">
+                  <TD className="whitespace-nowrap">
+                    <div className="flex flex-nowrap justify-end gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => setSelected(bin)}><Eye className="h-3.5 w-3.5" />View</Button>
                       {bin.status === "CANCELLED" ? (
                         <Button type="button" size="sm" variant="outline" className="text-viaje-red" onClick={() => deleteBin(bin)}><Trash2 className="h-3.5 w-3.5" />Delete</Button>

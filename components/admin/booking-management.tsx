@@ -566,26 +566,33 @@ export function BookingManagement() {
                 <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">{selected.reference ?? selected.id}</p>
                 <h2 className="mt-1 font-serif text-2xl font-semibold text-viaje-navy">Booking Details</h2>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={copyCustomerLink}><Copy className="h-3.5 w-3.5" />Copy Client Link</Button>
-                <Button type="button" size="sm" variant="outline" onClick={openCustomerLink}><ExternalLink className="h-3.5 w-3.5" />Open Link</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("itinerary")}><FileDown className="h-3.5 w-3.5" />Download Itinerary</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("acknowledgement-receipt")}><FileDown className="h-3.5 w-3.5" />Download Acknowledgement Receipt</Button>
-                <Button type="button" size="sm" variant="outline" onClick={sendConfirmationEmail} disabled={sendingConfirmation}>
-                  <Mail className="h-3.5 w-3.5" />{sendingConfirmation ? "Sending..." : "Send Email"}
-                </Button>
-                {bookingStatusActions(selected.status).map((action) => (
+              <Button type="button" variant="outline" size="icon" onClick={closeBooking} aria-label="Close booking details">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid gap-6 p-5">
+            <Card>
+              <CardHeader><CardTitle>Booking Actions</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={copyCustomerLink}><Copy className="h-3.5 w-3.5" />Copy Client Link</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={openCustomerLink}><ExternalLink className="h-3.5 w-3.5" />Open Link</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("itinerary")}><FileDown className="h-3.5 w-3.5" />Download Itinerary</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => downloadBookingPdf("acknowledgement-receipt")}><FileDown className="h-3.5 w-3.5" />Download Acknowledgement Receipt</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={sendConfirmationEmail} disabled={sendingConfirmation}>
+                    <Mail className="h-3.5 w-3.5" />{sendingConfirmation ? "Sending..." : "Send Email"}
+                  </Button>
+                  {bookingStatusActions(selected.status).map((action) => (
                     <Button key={action.value} type="button" size="sm" variant={action.value === "CANCELLED" ? "outline" : "default"} className={action.value === "CANCELLED" ? "text-viaje-red" : ""} onClick={() => updateBookingStatus(action.value)}>
                       {action.label}
                     </Button>
-                ))}
-                <Button type="button" variant="outline" size="icon" onClick={closeBooking} aria-label="Close booking details">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
-            <div className="grid min-w-0 grid-cols-1 gap-5 pt-5 pl-5 pr-5 lg:col-span-2 lg:grid-cols-[3fr_2fr]">
+            <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[3fr_2fr]">
 
             {/* =========================================================
                 PACKAGE / BOOKING INFORMATION — 100%
@@ -1291,6 +1298,7 @@ export function BookingManagement() {
             </div>
 
           </div>
+        </div>
         </div>
       )}
     </div>

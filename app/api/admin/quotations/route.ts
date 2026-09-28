@@ -14,6 +14,7 @@ import {
 } from "@/lib/quotations";
 import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
 import { pageCursor, paginatedDocs, prefixSearchBounds } from "@/lib/admin-pagination";
+import { logActivity } from "@/lib/activity-log";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -104,6 +105,18 @@ export async function POST(request: NextRequest) {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   })));
+
+  await logActivity({
+    type: "quotation.created",
+    module: "quotations",
+    entityType: "quotation",
+    entityId: quotationId,
+    reference: referenceNumber,
+    actorName: "Admin",
+    description: `Admin created quotation ${referenceNumber} for ${quotation.clientName}.`,
+    href: "/admin/quotations",
+    metadata: { totalAmount: quotation.totalAmount },
+  });
 
   return NextResponse.json({
     quotation: normalizeQuotation(quotationId, { ...quotation, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, items),

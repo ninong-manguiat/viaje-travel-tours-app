@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getPackageById } from "@/lib/package-data";
+import { logActivity } from "@/lib/activity-log";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
@@ -240,6 +241,30 @@ export async function POST(request: NextRequest) {
     }
     throw error;
   }
+
+  const contactName = [normalizedGroupContact.firstName, normalizedGroupContact.lastName].filter(Boolean).join(" ").trim();
+  await logActivity({
+    type: "booking.created",
+    module: "bookings",
+    entityType: "booking",
+    entityId: bookingId,
+    reference,
+    actorName: contactName,
+    description: `${contactName || "A customer"} submitted booking ${reference}.`,
+    href: `/admin/bookings?bookingId=${encodeURIComponent(bookingId)}`,
+    metadata: { paymentId, amountSubmitted },
+  });
+  await logActivity({
+    type: "payment.submitted",
+    module: "payments",
+    entityType: "payment",
+    entityId: paymentId,
+    reference,
+    actorName: contactName,
+    description: `${contactName || "A customer"} submitted proof of payment for ${reference}.`,
+    href: "/admin/payments/verification",
+    metadata: { bookingId, amountSubmitted },
+  });
 
   const paymentMethodDoc = booking.paymentInfo.method
     ? await adminDb.collection("paymentMethods").doc(String(booking.paymentInfo.method)).get().catch(() => null)

@@ -13,6 +13,7 @@ import {
   type DocumentType,
   type UploadMode,
 } from "@/lib/document-bins";
+import { logActivity } from "@/lib/activity-log";
 import { deleteFile } from "@/lib/storage";
 
 function unauthorized() {
@@ -87,6 +88,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { binId:
       cancelledAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+    await logActivity({
+      type: "documents.bin_cancelled",
+      module: "documents",
+      entityType: "documentBin",
+      entityId: bin.id,
+      reference: bin.referenceNumber,
+      actorName: "Admin",
+      description: `Admin cancelled document bin ${bin.referenceNumber}.`,
+      href: "/admin/documents",
+    });
     return NextResponse.json({ documentBin: { ...bin, publicToken: "", requirements, status: "CANCELLED", cancelledAt: new Date().toISOString() } });
   }
 
@@ -103,6 +114,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { binId:
     const nextStatus = statusFromRequirements(requirements, bin.status);
 
     await ref.set({ requirements, status: nextStatus, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await logActivity({
+      type: "documents.requirement_reviewed",
+      module: "documents",
+      entityType: "documentBin",
+      entityId: bin.id,
+      reference: bin.referenceNumber,
+      actorName: "Admin",
+      description: `Admin marked a document requirement for ${bin.referenceNumber} as ${status}.`,
+      href: "/admin/documents",
+      metadata: { requirementId, status },
+    });
     return NextResponse.json({ documentBin: { ...bin, requirements, status: nextStatus } });
   }
 
@@ -116,6 +138,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { binId:
     const requirements = [...bin.requirements, requirement];
     const nextStatus: DocumentBinStatus = bin.status === "CANCELLED" ? "CANCELLED" : "ACTIVE";
     await ref.set({ requirements, status: nextStatus, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await logActivity({
+      type: "documents.requirement_added",
+      module: "documents",
+      entityType: "documentBin",
+      entityId: bin.id,
+      reference: bin.referenceNumber,
+      actorName: "Admin",
+      description: `Admin added a document requirement to ${bin.referenceNumber}.`,
+      href: "/admin/documents",
+      metadata: { requirementId: requirement.id },
+    });
     return NextResponse.json({ documentBin: { ...bin, requirements, status: nextStatus } });
   }
 

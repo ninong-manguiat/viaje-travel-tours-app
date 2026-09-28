@@ -12,6 +12,7 @@ import {
   type QuotationItemType,
 } from "@/lib/quotations";
 import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
+import { logActivity } from "@/lib/activity-log";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -109,12 +110,33 @@ export async function PATCH(request: NextRequest, { params }: { params: { quotat
       finalizedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+    await logActivity({
+      type: "quotation.finalized",
+      module: "quotations",
+      entityType: "quotation",
+      entityId: params.quotationId,
+      reference: quotation.referenceNumber,
+      actorName: "Admin",
+      description: `Admin finalized quotation ${quotation.referenceNumber}.`,
+      href: "/admin/quotations",
+      metadata: { status: "FINALIZED" },
+    });
   } else if (action === "generatePaymentLink") {
     if (quotation.status !== "FINALIZED") return NextResponse.json({ error: "Finalize the quotation before generating a payment link." }, { status: 400 });
     await adminDb.collection("quotations").doc(params.quotationId).set({
       paymentToken: quotation.paymentToken || secureToken(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+    await logActivity({
+      type: "quotation.payment_link_generated",
+      module: "quotations",
+      entityType: "quotation",
+      entityId: params.quotationId,
+      reference: quotation.referenceNumber,
+      actorName: "Admin",
+      description: `Admin generated a payment link for quotation ${quotation.referenceNumber}.`,
+      href: "/admin/quotations",
+    });
   } else {
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
   }

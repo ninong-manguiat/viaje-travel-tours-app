@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { Route } from "next";
 import { useState } from "react";
 import { BookOpen, Calculator, CreditCard, FileText, LayoutDashboard, Menu, Package, PanelsTopLeft, ChevronLeft, WalletCards } from "lucide-react";
@@ -10,20 +11,36 @@ const groups = [
   {
     label: "VIAJE ADMIN | admin@viaje.com",
     items: [
-      { href: "/admin/website-content", label: "Website Content", icon: PanelsTopLeft },
-      { href: "/admin/packages", label: "Packages", icon: Package },
-      { href: "/admin/payment-management", label: "Payment Management", icon: WalletCards },
-      { href: "/admin/documents", label: "Documents", icon: FileText },
-      { href: "/admin/quotations", label: "Quotation Builder", icon: Calculator },
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/admin/payments/verification", label: "Payments", icon: CreditCard },
-      { href: "/admin/bookings", label: "Bookings", icon: BookOpen },
+    ],
+  },
+  {
+    label: "Logs",
+    items: [
+      { href: "/admin/bookings", label: "Booking Logs", icon: BookOpen },
+      { href: "/admin/payments/verification", label: "Payments Logs", icon: CreditCard },
+      { href: "/admin/quotations", label: "Quotations Logs", icon: Calculator },
+      { href: "/admin/documents", label: "Documents Logs", icon: FileText },
+    ],
+  },
+  {
+    label: "Manage",
+    items: [
+      { href: "/admin/website-content", label: "Manage Website Content", icon: PanelsTopLeft },
+      { href: "/admin/packages", label: "Manage Packages", icon: Package },
+      { href: "/admin/payment-management", label: "Manage Payment Reference", icon: WalletCards },
     ],
   }
 ] satisfies Array<{ label: string; items: Array<{ href: Route; label: string; icon: typeof LayoutDashboard }> }>;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
+  const pathname = usePathname();
+
+  function isActive(href: Route) {
+    if (href === "/admin") return pathname === "/admin";
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <div className={`min-h-screen bg-viaje-paper lg:grid ${open ? "lg:grid-cols-[230px_1fr]" : "lg:grid-cols-[72px_1fr]"}`}>
@@ -35,15 +52,26 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="flex flex-col gap-5">
-          {groups.map((group) => (
+          {groups.map((group, index) => (
             <div key={group.label} className="grid gap-1">
+              {index > 0 && <div className="my-2 border-t border-white/10" />}
               {open && <p className="px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">{group.label}</p>}
-              {group.items.map((item) => (
-                <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px] font-semibold text-white/70 hover:bg-white/10 hover:text-white" title={item.label}>
-                  <item.icon className="h-4 w-4 opacity-80" />
+              {group.items.map((item) => {
+                const active = isActive(item.href);
+                return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px] font-semibold transition ${
+                    active ? "bg-white text-viaje-navy shadow-sm" : "text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                  title={item.label}
+                >
+                  <item.icon className={`h-4 w-4 ${active ? "text-viaje-red" : "opacity-80"}`} />
                   {open && item.label}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           ))}
         </nav>

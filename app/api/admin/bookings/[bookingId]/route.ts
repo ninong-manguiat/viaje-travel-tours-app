@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { randomBytes } from "node:crypto";
 import { isBookingDocumentType } from "@/lib/booking-documents";
 import { serializeDocumentBin } from "@/lib/document-bins";
+import { logActivity } from "@/lib/activity-log";
 import { deleteFile } from "@/lib/storage";
 
 const paymentStatuses = ["pending", "for_verification", "verified", "rejected", "paid", "partially_paid"];
@@ -137,6 +138,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     if (!bookingStatuses.includes(status)) return NextResponse.json({ error: "Invalid booking status" }, { status: 400 });
 
     await ref.set({ status, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await logActivity({
+      type: "booking.status_updated",
+      module: "bookings",
+      entityType: "booking",
+      entityId: params.bookingId,
+      reference: String(booking.reference || params.bookingId),
+      actorName: "Admin",
+      description: `Admin updated booking ${String(booking.reference || params.bookingId)} to ${status}.`,
+      href: `/admin/bookings?bookingId=${encodeURIComponent(params.bookingId)}`,
+      metadata: { status },
+    });
     return NextResponse.json({ status });
   }
 
@@ -153,6 +165,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
 
     await ref.set({ paymentSchedule, paymentStatus, status: bookingStatus, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await logActivity({
+      type: "booking.payment_schedule_updated",
+      module: "bookings",
+      entityType: "booking",
+      entityId: params.bookingId,
+      reference: String(booking.reference || params.bookingId),
+      actorName: "Admin",
+      description: `Admin updated a payment schedule item for ${String(booking.reference || params.bookingId)} to ${status.replace(/_/g, " ")}.`,
+      href: `/admin/bookings?bookingId=${encodeURIComponent(params.bookingId)}`,
+      metadata: { scheduleItemId, status },
+    });
     return NextResponse.json({ paymentSchedule, paymentStatus, status: bookingStatus });
   }
 

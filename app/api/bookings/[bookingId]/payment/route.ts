@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { logActivity } from "@/lib/activity-log";
 import { currentBookingBalance, getPublicBooking } from "@/lib/public-bookings";
 
 export async function POST(request: NextRequest, { params }: { params: { bookingId: string } }) {
@@ -50,6 +51,20 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     paymentStatus: "for_verification",
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
+
+  const contact = booking.groupContact || {};
+  const actorName = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
+  await logActivity({
+    type: "payment.submitted",
+    module: "payments",
+    entityType: "payment",
+    entityId: paymentId,
+    reference: booking.reference,
+    actorName,
+    description: `${actorName || "A customer"} submitted a balance payment for ${booking.reference}.`,
+    href: "/admin/payments/verification",
+    metadata: { bookingId: booking.id, amountSubmitted: summary.remainingBalance },
+  });
 
   return NextResponse.json({ payment });
 }

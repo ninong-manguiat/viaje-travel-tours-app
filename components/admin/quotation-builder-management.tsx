@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, ExternalLink, FileDown, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, FileDown, Mail, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
@@ -294,15 +294,16 @@ export function QuotationBuilderManagement() {
   }
 
   async function removeQuotation(quotation: Quotation) {
-    if (!window.confirm("Permanently delete this quotation?\nThis action cannot be undone.")) return;
+    if (!window.confirm("Permanently delete this quotation?\nThis action cannot be undone.")) return false;
 
     const response = await fetch(`/api/admin/quotations/${quotation.id}`, { method: "DELETE" });
     if (!response.ok) {
       setStatus("Unable to delete quotation.");
-      return;
+      return false;
     }
     setRefreshKey((current) => current + 1);
     setStatus("Quotation deleted.");
+    return true;
   }
 
   async function quotationAction(quotation: Quotation, action: "finalize" | "generatePaymentLink") {
@@ -317,6 +318,7 @@ export function QuotationBuilderManagement() {
       return;
     }
     setQuotations((current) => current.map((item) => item.id === data.quotation.id ? data.quotation : item));
+    setEditing((current) => current?.id === data.quotation.id ? data.quotation : current);
     setStatus(action === "finalize" ? "Quotation finalized." : "Payment link generated.");
   }
 
@@ -373,14 +375,13 @@ export function QuotationBuilderManagement() {
                 <TH>Total</TH>
                 <TH>Status</TH>
                 <TH>Payment</TH>
-                <TH className="text-right">Actions</TH>
               </TR>
             </THead>
             <TBody>
-              {loading && <TR><TD colSpan={7}>Loading quotations...</TD></TR>}
-              {!loading && !quotations.length && <TR><TD colSpan={7}>No quotations yet.</TD></TR>}
+              {loading && <TR><TD colSpan={6}>Loading quotations...</TD></TR>}
+              {!loading && !quotations.length && <TR><TD colSpan={6}>No quotations yet.</TD></TR>}
               {!loading && quotations.map((quotation) => (
-                <TR key={quotation.id}>
+                <TR key={quotation.id} onClick={() => startEdit(quotation)} className="cursor-pointer hover:bg-viaje-paperAlt/60">
                   <TD className="font-semibold text-viaje-navy">{quotation.referenceNumber}</TD>
                   <TD>
                     <div className="font-medium text-viaje-ink">{quotation.clientName}</div>
@@ -390,21 +391,6 @@ export function QuotationBuilderManagement() {
                   <TD>{formatPeso(quotation.totalAmount)}</TD>
                   <TD><StatusBadge status={quotation.status} /></TD>
                   <TD><StatusBadge status={quotation.paymentStatus} /></TD>
-                  <TD>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => startEdit(quotation)}><Pencil className="h-3.5 w-3.5" />Edit</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => downloadQuotation(quotation)}><FileDown className="h-3.5 w-3.5" />Download Quotation</Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => copy(quotationUrl(quotation))}><Copy className="h-3.5 w-3.5" />Copy</Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => window.open(quotationUrl(quotation), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Open</Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => sendEmail(quotation)} disabled={sendingId === quotation.id}>
-                        <Mail className="h-3.5 w-3.5" />{sendingId === quotation.id ? "Sending..." : "Email to Client"}
-                      </Button>
-                      {quotation.status !== "FINALIZED" && <Button type="button" size="sm" variant="outline" onClick={() => quotationAction(quotation, "finalize")}><Send className="h-3.5 w-3.5" />Finalize</Button>}
-                      {quotation.status === "FINALIZED" && !quotation.paymentToken && <Button type="button" size="sm" variant="outline" onClick={() => quotationAction(quotation, "generatePaymentLink")}><ReceiptText className="h-3.5 w-3.5" />Payment Link</Button>}
-                      {paymentUrl(quotation) && <Button type="button" size="sm" variant="ghost" onClick={() => window.open(paymentUrl(quotation), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Pay</Button>}
-                      <Button type="button" size="sm" variant="ghost" className="text-viaje-red" onClick={() => removeQuotation(quotation)} aria-label={`Delete ${quotation.referenceNumber}`}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </TD>
                 </TR>
               ))}
             </TBody>
@@ -427,6 +413,36 @@ export function QuotationBuilderManagement() {
               <Button type="button" variant="outline" size="icon" onClick={closeModal} aria-label="Close quotation modal"><X className="h-4 w-4" /></Button>
             </div>
             <div className="grid gap-6 p-5">
+              {editing.id && (
+                <Card>
+                  <CardHeader><CardTitle>Quotation Actions</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => downloadQuotation(editing)}><FileDown className="h-3.5 w-3.5" />Download Quotation</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => copy(quotationUrl(editing))}><Copy className="h-3.5 w-3.5" />Copy Client Link</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => window.open(quotationUrl(editing), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Open Client Link</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => sendEmail(editing)} disabled={sendingId === editing.id}>
+                        <Mail className="h-3.5 w-3.5" />{sendingId === editing.id ? "Sending..." : "Email to Client"}
+                      </Button>
+                      {editing.status !== "FINALIZED" && <Button type="button" size="sm" variant="outline" onClick={() => quotationAction(editing, "finalize")}><Send className="h-3.5 w-3.5" />Finalize</Button>}
+                      {editing.status === "FINALIZED" && !editing.paymentToken && <Button type="button" size="sm" variant="outline" onClick={() => quotationAction(editing, "generatePaymentLink")}><ReceiptText className="h-3.5 w-3.5" />Payment Link</Button>}
+                      {paymentUrl(editing) && <Button type="button" size="sm" variant="outline" onClick={() => window.open(paymentUrl(editing), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Open Payment Link</Button>}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-viaje-red"
+                        onClick={async () => {
+                          if (await removeQuotation(editing)) closeModal();
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader><CardTitle>Client Information</CardTitle></CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">

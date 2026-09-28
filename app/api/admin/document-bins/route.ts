@@ -16,6 +16,7 @@ import {
   type DocumentType,
   type UploadMode,
 } from "@/lib/document-bins";
+import { logActivity } from "@/lib/activity-log";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -157,6 +158,18 @@ export async function POST(request: NextRequest) {
   } else {
     await docRef.set(documentBin);
   }
+
+  await logActivity({
+    type: "documents.bin_created",
+    module: "documents",
+    entityType: "documentBin",
+    entityId: docRef.id,
+    reference: documentBin.referenceNumber,
+    actorName: "Admin",
+    description: `Admin created document bin ${documentBin.referenceNumber} for ${documentBin.clientName}.`,
+    href: "/admin/documents",
+    metadata: { bookingId: bookingId || null },
+  });
 
   return NextResponse.json({
     documentBin: serializeDocumentBin(docRef.id, { ...documentBin, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),

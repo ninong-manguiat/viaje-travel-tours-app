@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { logActivity } from "@/lib/activity-log";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,6 +34,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
   }
+
+  const reference = String(payment.quotationReference || payment.bookingReference || payment.bookingId || payment.quotationId || params.paymentId);
+  await logActivity({
+    type: "payment.reviewed",
+    module: "payments",
+    entityType: "payment",
+    entityId: params.paymentId,
+    reference,
+    actorName: "Admin",
+    description: `Admin marked payment ${reference} as ${status.replace(/_/g, " ")}.`,
+    href: "/admin/payments/verification",
+    metadata: { status },
+  });
 
   return NextResponse.json({ payment: { id: params.paymentId, ...payment, status } });
 }

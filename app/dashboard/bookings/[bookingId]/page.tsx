@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileDown } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +30,16 @@ export default async function BookingDetailsPage({ params }: { params: { booking
           <h1 className="text-3xl font-bold text-viaje-navy">{booking.packageTitle || pkg?.title || "Booking Details"}</h1>
           {contactName && <p className="mt-2 text-sm text-viaje-soft">Prepared for {contactName}</p>}
         </div>
-        {booking.status && <StatusBadge status={booking.status} />}
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <a
+            href={`/api/bookings/${encodeURIComponent(params.bookingId)}/itinerary-pdf`}
+            className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-full border-[1.5px] border-viaje-navy2 bg-transparent px-6 py-3 text-sm font-semibold text-viaje-navy2 transition duration-150 hover:-translate-y-0.5 hover:bg-viaje-paperAlt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <FileDown className="h-4 w-4" />
+            Download Itinerary
+          </a>
+          {booking.status && <StatusBadge status={booking.status} />}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">

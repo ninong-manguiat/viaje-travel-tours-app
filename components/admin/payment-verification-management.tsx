@@ -99,7 +99,7 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                 <TH>Submitted</TH>
                 <TH>Expected</TH>
                 <TH>Status</TH>
-                <TH className="text-right">Actions</TH>
+                <TH className="w-[280px] text-right">Actions</TH>
               </TR>
             </THead>
             <TBody>
@@ -132,8 +132,8 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                   </TD>
                   <TD>{formatPeso(Number(payment.amountExpected || 0))}</TD>
                   <TD><StatusBadge status={payment.status || "for_verification"} /></TD>
-                  <TD>
-                    <div className="flex flex-wrap justify-end gap-2">
+                  <TD className="whitespace-nowrap">
+                    <div className="flex flex-nowrap justify-end gap-2">
                       {payment.receiptUrl && (
                         <Button type="button" size="sm" variant="outline" onClick={() => window.open(payment.receiptUrl, "_blank", "noopener,noreferrer")}>
                           <ExternalLink className="h-3.5 w-3.5" />Proof
