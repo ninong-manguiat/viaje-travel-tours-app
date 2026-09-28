@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/domain/status-badge";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -25,9 +26,30 @@ type PaymentLog = {
   createdAt?: string;
 };
 
-export function PaymentVerificationManagement({ initialPayments }: { initialPayments: PaymentLog[] }) {
+export function PaymentVerificationManagement({ initialPayments = [] }: { initialPayments?: PaymentLog[] }) {
   const [payments, setPayments] = useState(initialPayments);
+  const [loading, setLoading] = useState(true);
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+
+    fetch(`/api/admin/payments${params.toString() ? `?${params}` : ""}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load payments")))
+      .then((data) => {
+        setPayments(data.payments);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
+      .catch(() => setMessage("Unable to load submitted payment proofs."))
+      .finally(() => setLoading(false));
+  }, [currentCursor]);
 
   async function updateStatus(payment: PaymentLog, status: "verified" | "rejected") {
     const response = await fetch(`/api/admin/payments/${payment.id}`, {
@@ -42,6 +64,20 @@ export function PaymentVerificationManagement({ initialPayments }: { initialPaym
     }
     setPayments((current) => current.map((item) => item.id === payment.id ? { ...item, status } : item));
     setMessage(status === "verified" ? "Payment verified." : "Payment rejected.");
+  }
+
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const nextStack = [...current];
+      setCurrentCursor(nextStack.pop() ?? "");
+      return nextStack;
+    });
   }
 
   return (
@@ -67,8 +103,9 @@ export function PaymentVerificationManagement({ initialPayments }: { initialPaym
               </TR>
             </THead>
             <TBody>
-              {!payments.length && <TR><TD colSpan={7}>No submitted payment proofs yet.</TD></TR>}
-              {payments.map((payment) => (
+              {loading && <TR><TD colSpan={7}>Loading submitted payment proofs...</TD></TR>}
+              {!loading && !payments.length && <TR><TD colSpan={7}>No submitted payment proofs yet.</TD></TR>}
+              {!loading && payments.map((payment) => (
                 <TR key={payment.id}>
                   <TD>{payment.referenceNumber || payment.id}</TD>
                   <TD>
@@ -114,6 +151,13 @@ export function PaymentVerificationManagement({ initialPayments }: { initialPaym
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, FileDown, Mail, Pencil, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,24 +112,59 @@ export function QuotationBuilderManagement() {
   const [status, setStatus] = useState("");
   const [modalError, setModalError] = useState("");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const searchMounted = useRef(false);
 
   useEffect(() => {
-    fetch("/api/admin/quotations")
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCursorStack([]);
+      setCurrentCursor("");
+      setDebouncedQuery(query.trim());
+      setRefreshKey((current) => current + 1);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+    if (debouncedQuery) params.set("search", debouncedQuery);
+    fetch(`/api/admin/quotations${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load quotations")))
-      .then((data) => setQuotations(data.quotations ?? []))
+      .then((data) => {
+        setQuotations(data.quotations ?? []);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
       .catch(() => setStatus("Unable to load quotations."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentCursor, debouncedQuery, refreshKey]);
 
-  const filteredQuotations = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return quotations;
-    return quotations.filter((quotation) => [
-      quotation.referenceNumber,
-      quotation.clientName,
-      quotation.email,
-    ].some((value) => value.toLowerCase().includes(needle)));
-  }, [query, quotations]);
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const next = [...current];
+      setCurrentCursor(next.pop() ?? "");
+      return next;
+    });
+  }
 
   const editingTotal = useMemo(() => (editing?.items ?? []).reduce((sum, item) => sum + Number(item.amount || 0), 0), [editing]);
 
@@ -223,10 +259,8 @@ export function QuotationBuilderManagement() {
       return;
     }
 
-    setQuotations((current) => {
-      if (isNew) return [data.quotation, ...current];
-      return current.map((quotation) => quotation.id === data.quotation.id ? data.quotation : quotation);
-    });
+    if (isNew) setRefreshKey((current) => current + 1);
+    else setQuotations((current) => current.map((quotation) => quotation.id === data.quotation.id ? data.quotation : quotation));
     closeModal();
     setStatus("Quotation saved.");
   }
@@ -239,7 +273,7 @@ export function QuotationBuilderManagement() {
       setStatus("Unable to delete quotation.");
       return;
     }
-    setQuotations((current) => current.filter((item) => item.id !== quotation.id));
+    setRefreshKey((current) => current + 1);
     setStatus("Quotation deleted.");
   }
 
@@ -316,8 +350,8 @@ export function QuotationBuilderManagement() {
             </THead>
             <TBody>
               {loading && <TR><TD colSpan={7}>Loading quotations...</TD></TR>}
-              {!loading && !filteredQuotations.length && <TR><TD colSpan={7}>No quotations yet.</TD></TR>}
-              {!loading && filteredQuotations.map((quotation) => (
+              {!loading && !quotations.length && <TR><TD colSpan={7}>No quotations yet.</TD></TR>}
+              {!loading && quotations.map((quotation) => (
                 <TR key={quotation.id}>
                   <TD className="font-semibold text-viaje-navy">{quotation.referenceNumber}</TD>
                   <TD>
@@ -347,6 +381,13 @@ export function QuotationBuilderManagement() {
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
 

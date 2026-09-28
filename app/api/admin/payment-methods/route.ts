@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { listPaymentMethods, newPaymentMethod, normalizePaymentMethod } from "@/lib/payment-methods";
+import { pageCursor, paginatedDocs } from "@/lib/admin-pagination";
+import { newPaymentMethod, normalizePaymentMethod } from "@/lib/payment-methods";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,8 +21,15 @@ function validatePaymentMethod(method: ReturnType<typeof normalizePaymentMethod>
 export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
-  const paymentMethods = await listPaymentMethods();
-  return NextResponse.json({ paymentMethods });
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const collection = adminDb.collection("paymentMethods");
+  const page = await paginatedDocs({
+    query: collection.orderBy("bank"),
+    collection,
+    cursor: pageCursor(request),
+  });
+  const paymentMethods = page.docs.map((doc) => normalizePaymentMethod({ id: doc.id, ...doc.data() }));
+  return NextResponse.json({ paymentMethods, nextCursor: page.nextCursor, hasNext: page.hasNext });
 }
 
 export async function POST(request: NextRequest) {

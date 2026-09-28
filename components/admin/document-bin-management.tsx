@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, Eye, FileText, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -201,18 +202,50 @@ export function DocumentBinManagement() {
   const [requirements, setRequirements] = useState<RequirementDraft[]>([emptyRequirement()]);
   const [newRequirements, setNewRequirements] = useState<RequirementDraft[]>([]);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [createError, setCreateError] = useState("");
+  const searchMounted = useRef(false);
 
   useEffect(() => {
-    fetch("/api/admin/document-bins")
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCursorStack([]);
+      setCurrentCursor("");
+      setDebouncedQuery(query.trim());
+      setRefreshKey((current) => current + 1);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+    if (debouncedQuery) params.set("search", debouncedQuery);
+
+    fetch(`/api/admin/document-bins${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load document bins")))
-      .then((data) => setBins(data.documentBins))
+      .then((data) => {
+        setBins(data.documentBins);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
       .catch(() => setStatus("Unable to load document bins."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentCursor, debouncedQuery, refreshKey]);
 
   useEffect(() => {
     if (loading) return;
@@ -253,12 +286,6 @@ export function DocumentBinManagement() {
       })
       .catch(() => setStatus("Unable to load linked booking details."));
   }, []);
-
-  const visibleBins = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return bins;
-    return bins.filter((bin) => [bin.referenceNumber, bin.clientName].join(" ").toLowerCase().includes(normalized));
-  }, [bins, query]);
 
   function resetCreate() {
     setForm(emptyForm);
@@ -330,7 +357,7 @@ export function DocumentBinManagement() {
     }
 
     const data = await response.json();
-    setBins((current) => [data.documentBin, ...current]);
+    setRefreshKey((current) => current + 1);
     setSelected(data.documentBin);
     resetCreate();
     setStatus("Document bin created.");
@@ -390,9 +417,23 @@ export function DocumentBinManagement() {
       return;
     }
 
-    setBins((current) => current.filter((item) => item.id !== bin.id));
+    setRefreshKey((current) => current + 1);
     if (selected?.id === bin.id) setSelected(null);
     setStatus("Document bin deleted.");
+  }
+
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const nextStack = [...current];
+      setCurrentCursor(nextStack.pop() ?? "");
+      return nextStack;
+    });
   }
 
   return (
@@ -419,8 +460,8 @@ export function DocumentBinManagement() {
             </THead>
             <TBody>
               {loading && <TR><TD colSpan={7}>Loading document bins...</TD></TR>}
-              {!loading && !visibleBins.length && <TR><TD colSpan={7}>No document bins yet.</TD></TR>}
-              {!loading && visibleBins.map((bin) => (
+              {!loading && !bins.length && <TR><TD colSpan={7}>No document bins yet.</TD></TR>}
+              {!loading && bins.map((bin) => (
                 <TR key={bin.id}>
                   <TD>{bin.referenceNumber}</TD>
                   <TD>{bin.clientName}</TD>
@@ -450,6 +491,13 @@ export function DocumentBinManagement() {
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,14 +15,40 @@ export function PackageList() {
   const [packages, setPackages] = useState<TravelPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    fetch("/api/admin/packages")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+    fetch(`/api/admin/packages${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load packages")))
-      .then((data) => setPackages(data.packages))
+      .then((data) => {
+        setPackages(data.packages);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
       .catch(() => setStatus("Unable to load package records."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentCursor, refreshKey]);
+
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const next = [...current];
+      setCurrentCursor(next.pop() ?? "");
+      return next;
+    });
+  }
 
   async function removePackage(packageId: string) {
     const response = await fetch(`/api/admin/packages/${packageId}`, { method: "DELETE" });
@@ -29,7 +56,7 @@ export function PackageList() {
       setStatus("Unable to delete package.");
       return;
     }
-    setPackages((current) => current.filter((item) => item.id !== packageId));
+    setRefreshKey((current) => current + 1);
     setStatus("Package deleted.");
   }
 
@@ -82,6 +109,13 @@ export function PackageList() {
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
     </div>

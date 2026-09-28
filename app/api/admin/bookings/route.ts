@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { pageCursor, paginatedDocs } from "@/lib/admin-pagination";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,8 +34,13 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
   const { adminDb } = await import("@/lib/firebase-admin");
-  const snapshot = await adminDb.collection("bookings").orderBy("createdAt", "desc").get();
-  const bookings = snapshot.docs.map((doc) => serializeBooking(doc.id, doc.data()));
+  const collection = adminDb.collection("bookings");
+  const page = await paginatedDocs({
+    query: collection.orderBy("createdAt", "desc"),
+    collection,
+    cursor: pageCursor(request),
+  });
+  const bookings = page.docs.map((doc) => serializeBooking(doc.id, doc.data()));
 
-  return NextResponse.json({ bookings });
+  return NextResponse.json({ bookings, nextCursor: page.nextCursor, hasNext: page.hasNext });
 }

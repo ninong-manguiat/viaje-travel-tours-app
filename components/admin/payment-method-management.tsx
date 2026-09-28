@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { PackageMediaField } from "@/components/admin/package-media-field";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,14 +30,40 @@ export function PaymentMethodManagement() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [modalError, setModalError] = useState("");
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    fetch("/api/admin/payment-methods")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+    fetch(`/api/admin/payment-methods${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load payment methods")))
-      .then((data) => setPaymentMethods(data.paymentMethods))
+      .then((data) => {
+        setPaymentMethods(data.paymentMethods);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
       .catch(() => setStatus("Unable to load payment methods."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentCursor, refreshKey]);
+
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const next = [...current];
+      setCurrentCursor(next.pop() ?? "");
+      return next;
+    });
+  }
 
   function startCreate() {
     setStatus("");
@@ -82,11 +109,8 @@ export function PaymentMethodManagement() {
       return;
     }
 
-    const data = await response.json();
-    setPaymentMethods((current) => {
-      if (isNew) return [...current, data.paymentMethod].sort((a, b) => a.bank.localeCompare(b.bank));
-      return current.map((method) => method.id === data.paymentMethod.id ? data.paymentMethod : method);
-    });
+    await response.json();
+    setRefreshKey((current) => current + 1);
     closeModal();
     setStatus("Payment method saved.");
   }
@@ -99,7 +123,7 @@ export function PaymentMethodManagement() {
       setStatus("Unable to delete payment method.");
       return;
     }
-    setPaymentMethods((current) => current.filter((method) => method.id !== paymentMethod.id));
+    setRefreshKey((current) => current + 1);
     setStatus("Payment method deleted.");
   }
 
@@ -166,6 +190,13 @@ export function PaymentMethodManagement() {
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
 

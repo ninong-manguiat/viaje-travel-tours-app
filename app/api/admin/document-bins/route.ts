@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { pageCursor, paginatedDocs, prefixSearchBounds } from "@/lib/admin-pagination";
 import {
   acceptedFileTypeOptions,
   documentBinToken,
@@ -75,10 +76,20 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
   const { adminDb } = await import("@/lib/firebase-admin");
-  const snapshot = await adminDb.collection("documentBins").orderBy("createdAt", "desc").get();
-  const documentBins = snapshot.docs.map((doc) => serializeDocumentBin(doc.id, doc.data()));
+  const collection = adminDb.collection("documentBins");
+  const search = new URL(request.url).searchParams.get("search")?.trim() ?? "";
+  const bounds = prefixSearchBounds(search);
+  let query = collection.orderBy("createdAt", "desc");
 
-  return NextResponse.json({ documentBins });
+  if (bounds) {
+    const field = search.toUpperCase().startsWith("VDOC-") ? "referenceNumber" : "clientName";
+    query = collection.orderBy(field).startAt(bounds.start).endAt(bounds.end);
+  }
+
+  const page = await paginatedDocs({ query, collection, cursor: pageCursor(request) });
+  const documentBins = page.docs.map((doc) => serializeDocumentBin(doc.id, doc.data()));
+
+  return NextResponse.json({ documentBins, nextCursor: page.nextCursor, hasNext: page.hasNext });
 }
 
 export async function POST(request: NextRequest) {

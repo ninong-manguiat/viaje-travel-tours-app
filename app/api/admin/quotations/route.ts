@@ -13,6 +13,7 @@ import {
   type QuotationItemType,
 } from "@/lib/quotations";
 import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
+import { pageCursor, paginatedDocs, prefixSearchBounds } from "@/lib/admin-pagination";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -54,9 +55,19 @@ export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
   const { adminDb } = await import("@/lib/firebase-admin");
-  const snapshot = await adminDb.collection("quotations").orderBy("createdAt", "desc").get();
-  const quotations = snapshot.docs.map((doc) => normalizeQuotation(doc.id, doc.data() ?? {}));
-  return NextResponse.json({ quotations });
+  const collection = adminDb.collection("quotations");
+  const search = new URL(request.url).searchParams.get("search")?.trim() ?? "";
+  const bounds = prefixSearchBounds(search);
+  let query = collection.orderBy("createdAt", "desc");
+
+  if (bounds) {
+    const field = search.includes("@") ? "email" : search.toUpperCase().startsWith("VQ-") ? "referenceNumber" : "clientName";
+    query = collection.orderBy(field).startAt(bounds.start).endAt(bounds.end);
+  }
+
+  const page = await paginatedDocs({ query, collection, cursor: pageCursor(request) });
+  const quotations = page.docs.map((doc) => normalizeQuotation(doc.id, doc.data() ?? {}));
+  return NextResponse.json({ quotations, nextCursor: page.nextCursor, hasNext: page.hasNext });
 }
 
 export async function POST(request: NextRequest) {

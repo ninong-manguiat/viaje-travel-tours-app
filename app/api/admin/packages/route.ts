@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { listPackages } from "@/lib/package-data";
+import { pageCursor, paginatedDocs } from "@/lib/admin-pagination";
 import { newPackage, normalizePackage } from "@/lib/package-content";
 
 function unauthorized() {
@@ -19,9 +19,15 @@ async function collectionRef() {
 export async function GET(request: NextRequest) {
   if (!isAdmin(request)) return unauthorized();
 
-  const packages = await listPackages();
+  const collection = await collectionRef();
+  const page = await paginatedDocs({
+    query: collection.orderBy("title"),
+    collection,
+    cursor: pageCursor(request),
+  });
+  const packages = page.docs.map((doc) => normalizePackage({ id: doc.id, ...doc.data() }));
 
-  return NextResponse.json({ packages });
+  return NextResponse.json({ packages, nextCursor: page.nextCursor, hasNext: page.hasNext });
 }
 
 export async function POST(request: NextRequest) {

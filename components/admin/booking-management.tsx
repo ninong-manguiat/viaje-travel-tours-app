@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, FileDown, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -224,14 +225,39 @@ export function BookingManagement() {
   const [editDraft, setEditDraft] = useState<BookingEditDraft | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [currentCursor, setCurrentCursor] = useState("");
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [hasNext, setHasNext] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/bookings")
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (currentCursor) params.set("cursor", currentCursor);
+    fetch(`/api/admin/bookings${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load bookings")))
-      .then((data) => setBookings(data.bookings))
+      .then((data) => {
+        setBookings(data.bookings);
+        setNextCursor(data.nextCursor ?? "");
+        setHasNext(Boolean(data.hasNext));
+      })
       .catch(() => setStatus("Unable to load bookings."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentCursor]);
+
+  function nextPage() {
+    if (!nextCursor) return;
+    setCursorStack((current) => [...current, currentCursor]);
+    setCurrentCursor(nextCursor);
+  }
+
+  function previousPage() {
+    setCursorStack((current) => {
+      const next = [...current];
+      setCurrentCursor(next.pop() ?? "");
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (loading || selected) return;
@@ -522,6 +548,13 @@ export function BookingManagement() {
               ))}
             </TBody>
           </Table>
+          <PaginationControls
+            canPrevious={cursorStack.length > 0}
+            canNext={hasNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+          />
         </CardContent>
       </Card>
 
