@@ -33,6 +33,9 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPayments, setTotalPayments] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -46,6 +49,8 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
         setPayments(data.payments);
         setNextCursor(data.nextCursor ?? "");
         setHasNext(Boolean(data.hasNext));
+        setTotalPayments(Number(data.total ?? 0));
+        setPageSize(Number(data.pageSize ?? 10));
       })
       .catch(() => setMessage("Unable to load submitted payment proofs."))
       .finally(() => setLoading(false));
@@ -68,11 +73,14 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
 
   function nextPage() {
     if (!nextCursor) return;
+    setPage((current) => current + 1);
     setCursorStack((current) => [...current, currentCursor]);
     setCurrentCursor(nextCursor);
   }
 
   function previousPage() {
+    if (page <= 1) return;
+    setPage((current) => Math.max(1, current - 1));
     setCursorStack((current) => {
       const nextStack = [...current];
       setCurrentCursor(nextStack.pop() ?? "");
@@ -152,9 +160,13 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
             </TBody>
           </Table>
           <PaginationControls
-            canPrevious={cursorStack.length > 0}
+            canPrevious={page > 1}
             canNext={hasNext}
             loading={loading}
+            page={page}
+            pageSize={pageSize}
+            total={totalPayments}
+            itemCount={payments.length}
             onPrevious={previousPage}
             onNext={nextPage}
           />

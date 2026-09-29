@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pageCursor, paginatedDocs } from "@/lib/admin-pagination";
+import { ADMIN_PAGE_SIZE, pageCursor, paginatedDocs } from "@/lib/admin-pagination";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
     cursor: pageCursor(request),
   });
   const payments = page.docs.map((doc) => serializePayment(doc.id, doc.data()));
+  const totalSnapshot = await collection.count().get();
 
-  return NextResponse.json({ payments, nextCursor: page.nextCursor, hasNext: page.hasNext });
+  return NextResponse.json({
+    payments,
+    nextCursor: page.nextCursor,
+    hasNext: page.hasNext,
+    total: totalSnapshot.data().count || 0,
+    pageSize: ADMIN_PAGE_SIZE,
+  });
 }

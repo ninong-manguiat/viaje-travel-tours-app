@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, FileDown, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
@@ -229,34 +229,78 @@ export function BookingManagement() {
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const searchMounted = useRef(false);
+
+  useEffect(() => {
+    if (!searchMounted.current) {
+      searchMounted.current = true;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCursorStack([]);
+      setCurrentCursor("");
+      setPage(1);
+      setDebouncedQuery(query.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (currentCursor) params.set("cursor", currentCursor);
+    if (currentCursor && !debouncedQuery) params.set("cursor", currentCursor);
+    if (debouncedQuery) {
+      params.set("search", debouncedQuery);
+      params.set("page", String(page));
+    }
+    if (statusFilter) params.set("status", statusFilter);
     fetch(`/api/admin/bookings${params.toString() ? `?${params}` : ""}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load bookings")))
       .then((data) => {
         setBookings(data.bookings);
         setNextCursor(data.nextCursor ?? "");
         setHasNext(Boolean(data.hasNext));
+        setTotalBookings(Number(data.total ?? 0));
+        setPageSize(Number(data.pageSize ?? 10));
       })
       .catch(() => setStatus("Unable to load bookings."))
       .finally(() => setLoading(false));
-  }, [currentCursor]);
+  }, [currentCursor, debouncedQuery, page, statusFilter]);
 
   function nextPage() {
-    if (!nextCursor) return;
-    setCursorStack((current) => [...current, currentCursor]);
-    setCurrentCursor(nextCursor);
+    if (!hasNext) return;
+    setPage((current) => current + 1);
+    if (!debouncedQuery) {
+      setCursorStack((current) => [...current, currentCursor]);
+      setCurrentCursor(nextCursor);
+    }
   }
 
   function previousPage() {
-    setCursorStack((current) => {
-      const next = [...current];
-      setCurrentCursor(next.pop() ?? "");
-      return next;
-    });
+    if (page <= 1) return;
+    setPage((current) => Math.max(1, current - 1));
+    if (!debouncedQuery) {
+      setCursorStack((current) => {
+        const next = [...current];
+        setCurrentCursor(next.pop() ?? "");
+        return next;
+      });
+    }
+  }
+
+  function updateStatusFilter(value: string) {
+    setStatusFilter(value);
+    setCursorStack([]);
+    setCurrentCursor("");
+    setPage(1);
   }
 
   useEffect(() => {
@@ -530,6 +574,22 @@ export function BookingManagement() {
       <Card>
         <CardHeader><CardTitle>All Bookings</CardTitle></CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search booking reference, contact, email, phone, or package"
+            />
+            <select
+              value={statusFilter}
+              onChange={(event) => updateStatusFilter(event.target.value)}
+              className="h-11 rounded-[10px] border border-viaje-line bg-white px-3.5 text-sm text-viaje-ink outline-none focus:ring-2 focus:ring-viaje-red/20"
+              aria-label="Filter bookings by status"
+            >
+              <option value="">All statuses</option>
+              {bookingStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+          </div>
           <Table>
             <THead><TR><TH>Contact Person</TH><TH>Reference Number</TH><TH>Date of Transaction</TH><TH>Time of Transaction</TH><TH>Package Tour</TH><TH>Selected Departure</TH><TH>Status</TH></TR></THead>
             <TBody>
@@ -549,9 +609,13 @@ export function BookingManagement() {
             </TBody>
           </Table>
           <PaginationControls
-            canPrevious={cursorStack.length > 0}
+            canPrevious={page > 1}
             canNext={hasNext}
             loading={loading}
+            page={page}
+            pageSize={pageSize}
+            total={totalBookings}
+            itemCount={bookings.length}
             onPrevious={previousPage}
             onNext={nextPage}
           />

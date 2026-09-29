@@ -210,6 +210,9 @@ export function DocumentBinManagement() {
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalBins, setTotalBins] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -229,6 +232,7 @@ export function DocumentBinManagement() {
     const timeout = window.setTimeout(() => {
       setCursorStack([]);
       setCurrentCursor("");
+      setPage(1);
       setDebouncedQuery(query.trim());
       setRefreshKey((current) => current + 1);
     }, 300);
@@ -248,6 +252,8 @@ export function DocumentBinManagement() {
         setBins(data.documentBins);
         setNextCursor(data.nextCursor ?? "");
         setHasNext(Boolean(data.hasNext));
+        setTotalBins(Number(data.total ?? 0));
+        setPageSize(Number(data.pageSize ?? 10));
       })
       .catch(() => setStatus("Unable to load document bins."))
       .finally(() => setLoading(false));
@@ -452,11 +458,14 @@ export function DocumentBinManagement() {
 
   function nextPage() {
     if (!nextCursor) return;
+    setPage((current) => current + 1);
     setCursorStack((current) => [...current, currentCursor]);
     setCurrentCursor(nextCursor);
   }
 
   function previousPage() {
+    if (page <= 1) return;
+    setPage((current) => Math.max(1, current - 1));
     setCursorStack((current) => {
       const nextStack = [...current];
       setCurrentCursor(nextStack.pop() ?? "");
@@ -520,9 +529,13 @@ export function DocumentBinManagement() {
             </TBody>
           </Table>
           <PaginationControls
-            canPrevious={cursorStack.length > 0}
+            canPrevious={page > 1}
             canNext={hasNext}
             loading={loading}
+            page={page}
+            pageSize={pageSize}
+            total={totalBins}
+            itemCount={bins.length}
             onPrevious={previousPage}
             onNext={nextPage}
           />

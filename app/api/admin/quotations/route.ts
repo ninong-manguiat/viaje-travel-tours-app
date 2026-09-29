@@ -13,7 +13,7 @@ import {
   type QuotationItemType,
 } from "@/lib/quotations";
 import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
-import { pageCursor, paginatedDocs, prefixSearchBounds } from "@/lib/admin-pagination";
+import { ADMIN_PAGE_SIZE, pageCursor, paginatedDocs, prefixSearchBounds } from "@/lib/admin-pagination";
 import { logActivity } from "@/lib/activity-log";
 
 function unauthorized() {
@@ -68,7 +68,14 @@ export async function GET(request: NextRequest) {
 
   const page = await paginatedDocs({ query, collection, cursor: pageCursor(request) });
   const quotations = page.docs.map((doc) => normalizeQuotation(doc.id, doc.data() ?? {}));
-  return NextResponse.json({ quotations, nextCursor: page.nextCursor, hasNext: page.hasNext });
+  const totalSnapshot = await query.count().get();
+  return NextResponse.json({
+    quotations,
+    nextCursor: page.nextCursor,
+    hasNext: page.hasNext,
+    total: totalSnapshot.data().count || 0,
+    pageSize: ADMIN_PAGE_SIZE,
+  });
 }
 
 export async function POST(request: NextRequest) {
