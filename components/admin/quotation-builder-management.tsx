@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { emailPattern, isValidContactNumber, normalizeContactNumber } from "@/lib/document-bins";
+import { publicAppUrl } from "@/lib/public-url";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 const itemTypes = [
@@ -100,11 +101,6 @@ function newItem(sortOrder: number): QuotationItem {
 
 function itemName(item: QuotationItem) {
   return item.type === "Other" ? item.customName.trim() || "Other" : item.type;
-}
-
-function publicBaseUrl() {
-  if (typeof window === "undefined") return "";
-  return window.location.origin;
 }
 
 export function QuotationBuilderManagement() {
@@ -341,15 +337,19 @@ export function QuotationBuilderManagement() {
   }
 
   function quotationUrl(quotation: Quotation) {
-    return `${publicBaseUrl()}/quotation/${quotation.publicToken}`;
+    return publicAppUrl(`/quotation/${quotation.publicToken}`);
   }
 
   function paymentUrl(quotation: Quotation) {
-    return quotation.paymentToken ? `${publicBaseUrl()}/payment/quotation/${quotation.paymentToken}` : "";
+    return quotation.paymentToken ? publicAppUrl(`/payment/quotation/${quotation.paymentToken}`) : "";
   }
 
   function downloadQuotation(quotation: Quotation) {
     window.open(`/api/admin/quotations/${encodeURIComponent(quotation.id)}/pdf`, "_blank", "noopener,noreferrer");
+  }
+
+  function downloadAcknowledgementReceipt(quotation: Quotation) {
+    window.open(`/api/admin/quotations/${encodeURIComponent(quotation.id)}/acknowledgement-receipt-pdf`, "_blank", "noopener,noreferrer");
   }
 
   async function copy(value: string) {
@@ -432,6 +432,9 @@ export function QuotationBuilderManagement() {
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => downloadQuotation(editing)}><FileDown className="h-3.5 w-3.5" />Download Quotation</Button>
+                      {editing.status === "FINALIZED" && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => downloadAcknowledgementReceipt(editing)}><FileDown className="h-3.5 w-3.5" />Download Acknowledgement Receipt</Button>
+                      )}
                       <Button type="button" size="sm" variant="outline" onClick={() => copy(quotationUrl(editing))}><Copy className="h-3.5 w-3.5" />Copy Client Link</Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => window.open(quotationUrl(editing), "_blank", "noopener,noreferrer")}><ExternalLink className="h-3.5 w-3.5" />Open Client Link</Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => sendEmail(editing)} disabled={sendingId === editing.id}>

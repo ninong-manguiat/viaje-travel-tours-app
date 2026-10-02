@@ -22,6 +22,7 @@ import {
   type DocumentType,
   type UploadMode,
 } from "@/lib/document-bins";
+import { publicAppUrl } from "@/lib/public-url";
 import { formatDate } from "@/lib/utils";
 
 type RequirementDraft = {
@@ -56,8 +57,7 @@ const emptyForm = {
 };
 
 function binLink(bin: DocumentBin) {
-  if (typeof window === "undefined" || !bin.publicToken) return "";
-  return `${window.location.origin}/documents/${bin.publicToken}`;
+  return bin.publicToken ? publicAppUrl(`/documents/${bin.publicToken}`) : "";
 }
 
 function progressLabel(bin: DocumentBin) {

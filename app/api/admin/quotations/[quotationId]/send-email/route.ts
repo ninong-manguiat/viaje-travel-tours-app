@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getQuotationWithItems } from "@/lib/quotations";
+import { publicAppUrl } from "@/lib/public-url";
 import { sendQuotationEmail } from "@/lib/resend-template-registry";
 import { formatPeso } from "@/lib/utils";
 
@@ -9,10 +10,6 @@ function unauthorized() {
 
 function isAdmin(request: NextRequest) {
   return request.cookies.get("viaje-role")?.value === "admin";
-}
-
-function appUrl(request: NextRequest) {
-  return (process.env.NEXT_PUBLIC_APP_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`).replace(/\/+$/, "");
 }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: { quotati
   if (!quotation) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
   if (!emailPattern.test(quotation.email)) return NextResponse.json({ error: "Quotation has no valid email address." }, { status: 400 });
 
-  const quotationUrl = `${appUrl(request)}/quotation/${quotation.publicToken}`;
+  const quotationUrl = publicAppUrl(`/quotation/${quotation.publicToken}`, request);
   const quotationItemsHtml = quotation.items.map((item) => `
     <p>
       <strong>${escapeHtml(item.itemName)}</strong><br>

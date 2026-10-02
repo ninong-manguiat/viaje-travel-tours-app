@@ -9,6 +9,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/dashboard")) {
+    if (pathname.startsWith("/dashboard/bookings/")) return;
     return requireRole(request, "client");
   }
 }

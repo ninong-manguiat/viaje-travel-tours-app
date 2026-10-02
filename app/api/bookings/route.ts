@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getPackageById } from "@/lib/package-data";
 import { logActivity } from "@/lib/activity-log";
 import { emailTemplateSubjects } from "@/lib/email-templates";
+import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
 
@@ -37,11 +38,6 @@ function isValidContactNumber(value: unknown) {
 
 function isValidEmail(value: unknown) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
-function appUrl(request: NextRequest, path = "") {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`).replace(/\/+$/, "");
-  return `${baseUrl}/${path.replace(/^\/+/, "")}`;
 }
 
 function dateLabel(value?: string) {
@@ -281,7 +277,7 @@ export async function POST(request: NextRequest) {
     remainingBalance: formatPeso(remainingBalance),
     paymentMethod: paymentMethodName,
     itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
-    bookingUrl: appUrl(request, `/dashboard/bookings/${encodeURIComponent(reference)}`),
+    bookingUrl: publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request),
   }, {
     recipient: String(booking.groupContact.emailAddress || ""),
     subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,

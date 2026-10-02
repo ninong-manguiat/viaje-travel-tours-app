@@ -133,6 +133,14 @@ async function loadBooking(bookingId: string) {
   return { id: snapshot.id, data: snapshot.data() ?? {}, payments };
 }
 
+async function loadQuotationPayments(quotationId: string) {
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const paymentSnapshot = await adminDb.collection("payments").where("quotationId", "==", quotationId).get();
+  return paymentSnapshot.docs
+    .map((doc) => serializePaymentLog(doc.id, doc.data()))
+    .sort((a, b) => String(b.createdAt || b.paymentDate).localeCompare(String(a.createdAt || a.paymentDate)));
+}
+
 function totalPaidFromSchedule(schedule: Array<{ amount?: number; status?: string }>) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(String(item.status || "").toLowerCase()) ? sum + numberValue(item.amount) : sum, 0);
 }
@@ -203,6 +211,63 @@ export async function quotationPdfResponse(quotationId: string) {
   pdf.keyValues([["Total Amount", formatPdfPeso(quotation.totalAmount)]], 1);
 
   return downloadResponse(pdf.toBuffer(), `Quotation-${quotation.referenceNumber || quotation.id}.pdf`);
+}
+
+export async function quotationAcknowledgementReceiptPdfResponse(quotationId: string) {
+  const quotation = await getQuotationWithItems(quotationId);
+  if (!quotation) return null;
+  if (quotation.status !== "FINALIZED") return "not_finalized" as const;
+
+  const payments = await loadQuotationPayments(quotation.id);
+  const verifiedPayments = payments.filter((payment) => ["verified", "paid"].includes(payment.status.toLowerCase()));
+  const latestPayment = payments[0] ?? null;
+  const receivedPayment = verifiedPayments[0] ?? null;
+  const method = await paymentMethodDetails(receivedPayment || latestPayment);
+  const amountReceived = verifiedPayments.reduce((sum, payment) => sum + numberValue(payment.amountSubmitted || payment.amountExpected), 0);
+  const remainingBalance = Math.max(0, quotation.totalAmount - amountReceived);
+  const pdf = await createDocument("Acknowledgement Receipt");
+
+  pdf.section("Receipt Information");
+  pdf.keyValues([
+    ["Quotation Reference", quotation.referenceNumber],
+    ["Receipt Date", safeDate(receivedPayment?.paymentDate || receivedPayment?.createdAt || quotation.updatedAt || quotation.createdAt)],
+    ["Quotation Status", quotation.status],
+    ["Payment Status", quotation.paymentStatus],
+    ["Client Name", quotation.clientName],
+    ["Email", quotation.email],
+    ["Contact Number", quotation.contactNumber],
+  ], 2);
+
+  pdf.section("Quotation Items / Services");
+  const detailRows: PdfRow[] = quotation.items.map((item) => [
+    item.itemName,
+    item.remarks,
+    formatPdfPeso(item.amount),
+  ]);
+  pdf.table(["Service", "Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
+
+  pdf.section("Payment Information");
+  pdf.keyValues([
+    ["Payment Method", method?.bank || receivedPayment?.method || latestPayment?.method || "N/A"],
+    ["Account Name", method?.accountName || "N/A"],
+    ["Account Number", method?.referenceNumber || receivedPayment?.paymentMethodReferenceNumber || latestPayment?.paymentMethodReferenceNumber || "N/A"],
+    ["Payment Reference", receivedPayment?.referenceNumber || latestPayment?.referenceNumber || "N/A"],
+    ["Amount Received", amountReceived > 0 ? formatPdfPeso(amountReceived) : "No verified payment received"],
+    ["Grand Total", formatPdfPeso(quotation.totalAmount)],
+    ["Remaining Balance", formatPdfPeso(remainingBalance)],
+  ], 2);
+
+  if (latestPayment && !receivedPayment) {
+    pdf.paragraph(`Latest submitted payment is ${paymentStatusLabel(latestPayment.status || "pending")} and has not been verified as received.`, 8.8);
+  }
+
+  if (receivedPayment?.receiptUrl) {
+    pdf.section("Proof Information");
+    pdf.paragraph(`Proof of payment file: ${receivedPayment.receiptUrl}`, 8.5);
+  }
+
+  pdf.signatureBlock();
+  return downloadResponse(pdf.toBuffer(), `Acknowledgement-Receipt-${quotation.referenceNumber || quotation.id}.pdf`);
 }
 
 function bookingInfoRows(bookingId: string, booking: FirestoreData): Array<[string, string | number | undefined]> {

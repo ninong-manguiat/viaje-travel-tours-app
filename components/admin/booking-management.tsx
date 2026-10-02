@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { DocumentBinProgressIndicator } from "@/components/admin/document-bin-management";
 import { documentBinProgress, documentName, type DocumentBin } from "@/lib/document-bins";
+import { publicAppUrl } from "@/lib/public-url";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 type PaymentScheduleItem = {
@@ -185,8 +186,7 @@ function guestName(guest: Record<string, unknown>, fallback: string) {
 }
 
 function documentBinLink(bin: DocumentBin) {
-  if (typeof window === "undefined" || !bin.publicToken) return "";
-  return `${window.location.origin}/documents/${bin.publicToken}`;
+  return bin.publicToken ? publicAppUrl(`/documents/${bin.publicToken}`) : "";
 }
 
 function documentProgressLabel(bin: DocumentBin) {
@@ -201,8 +201,7 @@ function documentProgressPercent(bin: DocumentBin) {
 }
 
 function customerBookingLink(booking: AdminBooking) {
-  if (typeof window === "undefined") return "";
-  return `${window.location.origin}/dashboard/bookings/${encodeURIComponent(booking.reference ?? booking.id)}`;
+  return publicAppUrl(`/dashboard/bookings/${encodeURIComponent(booking.reference ?? booking.id)}`);
 }
 
 function bookingStatusActions(status?: string) {

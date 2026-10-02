@@ -6,6 +6,7 @@ import {
   type SubsequentPaymentRequestEmailData,
   type TransactionalEmailType,
 } from "@/lib/email-types";
+import { publicAppUrl } from "@/lib/public-url";
 
 const brand = {
   name: "Viaje Travel and Tours",
@@ -16,15 +17,8 @@ const brand = {
   facebook: "https://www.facebook.com/viajewithus/",
 };
 
-function appBaseUrl() {
-  const url = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL;
-  if (!url) return "";
-  return url.replace(/\/+$/, "");
-}
-
 function assetUrl(path: string) {
-  const baseUrl = appBaseUrl();
-  return baseUrl ? `${baseUrl}/${path.replace(/^\/+/, "")}` : "";
+  return publicAppUrl(path);
 }
 
 function escapeHtml(value: string | number) {

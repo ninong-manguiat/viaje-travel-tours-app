@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { transactionalEmailTypes, type TransactionalEmailType } from "@/lib/email-types";
+import { publicAppUrl } from "@/lib/public-url";
 import {
   BookingConfirmedEmail,
   BookingReceivedEmail,
@@ -32,12 +33,11 @@ function testSendingEnabled() {
   return process.env.NODE_ENV === "development" || process.env.ENABLE_EMAIL_TEST_SEND === "true";
 }
 
-function appUrl(path = "") {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://viajetravelandtours.com").replace(/\/+$/, "");
-  return `${baseUrl}/${path.replace(/^\/+/, "")}`;
+function appUrl(request: NextRequest, path = "") {
+  return publicAppUrl(path, request);
 }
 
-function sampleHtml(emailType: TransactionalEmailType) {
+function sampleHtml(request: NextRequest, emailType: TransactionalEmailType) {
   if (emailType === "BOOKING_RECEIVED") {
     return BookingReceivedEmail({
       firstName: "Juan",
@@ -50,7 +50,7 @@ function sampleHtml(emailType: TransactionalEmailType) {
       remainingBalance: "PHP 69,000.00",
       paymentMethod: "Bank Transfer",
       itineraryContent: "Tokyo, Mt. Fuji, Osaka",
-      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+      bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     });
   }
 
@@ -66,7 +66,7 @@ function sampleHtml(emailType: TransactionalEmailType) {
       totalAmount: "PHP 138,000.00",
       totalPaid: "PHP 69,000.00",
       remainingBalance: "PHP 69,000.00",
-      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+      bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     });
   }
 
@@ -76,7 +76,7 @@ function sampleHtml(emailType: TransactionalEmailType) {
       documentBinReference: "VDOC-TEST-001",
       purpose: "Tour Package",
       documentRequirements: ["Passport", "1x1 Picture", "Birth Certificate"],
-      documentBinUrl: appUrl("/documents/sample-token"),
+      documentBinUrl: appUrl(request, "/documents/sample-token"),
     });
   }
 
@@ -88,7 +88,7 @@ function sampleHtml(emailType: TransactionalEmailType) {
       paymentName: "Remaining Balance",
       amountDue: "PHP 69,000.00",
       dueDate: "October 1, 2026",
-      paymentUrl: appUrl("/checkout/payment/sample-draft"),
+      paymentUrl: appUrl(request, "/book/VIAJE-TEST-001/payment"),
     });
   }
 
@@ -102,12 +102,12 @@ function sampleHtml(emailType: TransactionalEmailType) {
     totalAmount: "PHP 138,000.00",
     totalPaid: "PHP 138,000.00",
     remainingBalance: "PHP 0.00",
-    bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+    bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     isFullyPaid: true,
   });
 }
 
-function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string) {
+function sendSampleTemplate(request: NextRequest, emailType: TransactionalEmailType, recipient: string) {
   const options = {
     recipient,
     subject: `[TEST] ${emailTemplateSubjects[emailType]}`,
@@ -129,7 +129,7 @@ function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string
       remainingBalance: "PHP 69,000.00",
       paymentMethod: "Bank Transfer",
       itineraryContent: "Tokyo, Mt. Fuji, Osaka",
-      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+      bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     }, options);
   }
 
@@ -145,7 +145,7 @@ function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string
       totalAmount: "PHP 138,000.00",
       totalPaid: "PHP 69,000.00",
       remainingBalance: "PHP 69,000.00",
-      bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+      bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     }, options);
   }
 
@@ -155,7 +155,7 @@ function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string
       documentBinReference: "VDOC-TEST-001",
       purpose: "Tour Package",
       documentRequirements: ["Passport", "1x1 Picture", "Birth Certificate"],
-      documentBinUrl: appUrl("/documents/sample-token"),
+      documentBinUrl: appUrl(request, "/documents/sample-token"),
     }, options);
   }
 
@@ -167,7 +167,7 @@ function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string
       paymentName: "Remaining Balance",
       amountDue: "PHP 69,000.00",
       dueDate: "October 1, 2026",
-      paymentUrl: appUrl("/checkout/payment/sample-draft"),
+      paymentUrl: appUrl(request, "/book/VIAJE-TEST-001/payment"),
     }, options);
   }
 
@@ -181,7 +181,7 @@ function sendSampleTemplate(emailType: TransactionalEmailType, recipient: string
     totalAmount: "PHP 138,000.00",
     totalPaid: "PHP 138,000.00",
     remainingBalance: "PHP 0.00",
-    bookingUrl: appUrl("/dashboard/bookings/VIAJE-TEST-001"),
+    bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     isFullyPaid: true,
   }, options);
 }
@@ -203,13 +203,13 @@ export async function POST(request: NextRequest) {
         recipient,
         emailType,
         subject: `[TEST] ${emailTemplateSubjects[emailType]}`,
-        html: sampleHtml(emailType),
+        html: sampleHtml(request, emailType),
         relatedEntityType: "test",
         relatedEntityId: "VIAJE-TEST-001",
         relatedReference: "VIAJE-TEST-001",
         metadata: { testSend: true, localHtml: true },
       }))
-    : await sendSampleTemplate(emailType, recipient);
+    : await sendSampleTemplate(request, emailType, recipient);
 
   if (!result.ok) return NextResponse.json({ error: result.error, logId: result.logId || "" }, { status: 400 });
 

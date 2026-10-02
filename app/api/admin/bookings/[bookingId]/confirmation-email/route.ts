@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { getPackageById } from "@/lib/package-data";
+import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
 
@@ -22,12 +23,6 @@ function numberValue(value: unknown) {
 function dateLabel(value?: string) {
   if (!value) return "To be advised";
   return formatDate(value);
-}
-
-function appUrl(path = "") {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
-  if (!baseUrl) return "";
-  return `${baseUrl}/${path.replace(/^\/+/, "")}`;
 }
 
 function itineraryContent(pkg: Awaited<ReturnType<typeof getPackageById>>) {
@@ -81,7 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   const paymentAmount = initialPaymentAmount(booking, schedule);
   const remainingBalance = numberValue(booking.balance ?? Math.max(0, totalAmount - paymentAmount));
   const departureDate = String(booking.bookingSelections?.selectedDeparture?.startDate || booking.departureDate || "");
-  const bookingUrl = appUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`);
+  const bookingUrl = publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request);
 
   const result = await sendBookingReceivedEmail({
     firstName: String(booking.groupContact?.firstName || "there"),
