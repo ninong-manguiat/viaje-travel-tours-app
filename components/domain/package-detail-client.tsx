@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
-import { getAirline } from "@/lib/airlines";
+import type { Airline } from "@/lib/airlines";
 import type { TravelPackage } from "@/lib/types";
 import type { CmsIconName } from "@/lib/website-content";
 import { StatusBadge } from "@/components/domain/status-badge";
@@ -116,7 +116,7 @@ function PaxCounter({ value, onChange }: { value: number; onChange: (value: numb
   );
 }
 
-export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
+export function PackageDetailClient({ pkg, airline }: { pkg: TravelPackage; airline: Airline }) {
   const searchParams = useSearchParams();
   const bookableDepartures = pkg.travelDates.filter((date) => date.availabilityStatus !== "sold_out");
   const [selectedDepartureId, setSelectedDepartureId] = useState(() => {
@@ -127,7 +127,6 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
   });
   const [selectedAddonId, setSelectedAddonId] = useState(searchParams.get("addonId") || "none");
   const [pax, setPax] = useState(Math.max(1, Number(searchParams.get("pax")) || 1));
-  const airline = getAirline(pkg.airline);
   const selectedDeparture = pkg.travelDates.find((date) => date.id === selectedDepartureId) ?? pkg.travelDates[0] ?? null;
   const selectedAddon = pkg.addons.find((addon) => addon.id === selectedAddonId) ?? null;
   const additionalAmount = selectedDeparture?.additionalAmount ?? 0;
@@ -189,7 +188,7 @@ export function PackageDetailClient({ pkg }: { pkg: TravelPackage }) {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Airline</p>
-              <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-viaje-navy"><img src={airline.logoSrc} alt="" className="h-7 w-7 rounded-full object-cover" />{airline.name}</h2>
+              <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-viaje-navy"><img src={airline.logoUrl} alt="" className="h-7 w-7 rounded-full object-cover" />{airline.name}</h2>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft">Hotel</p>

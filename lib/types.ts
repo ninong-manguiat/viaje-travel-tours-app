@@ -23,6 +23,7 @@ export interface TravelPackage {
   country: string;
   type: "domestic" | "international";
   duration: string;
+  airlineId?: string;
   airline?: string;
   hotel?: string;
   description: string;

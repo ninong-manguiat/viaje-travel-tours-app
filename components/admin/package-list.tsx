@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plane, Plus, Trash2 } from "lucide-react";
+import { AirlineManagementModal } from "@/components/admin/airline-management-modal";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export function PackageList() {
   const [nextCursor, setNextCursor] = useState("");
   const [hasNext, setHasNext] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showAirlines, setShowAirlines] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -67,9 +69,12 @@ export function PackageList() {
           <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">Admin</p>
           <h1 className="mt-2 text-3xl font-bold text-viaje-navy">Packages</h1>
         </div>
-        <Link href="/admin/packages/new/edit">
-          <Button><Plus className="h-4 w-4" />New Package</Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => setShowAirlines(true)}><Plane className="h-4 w-4" />Manage Airlines</Button>
+          <Link href="/admin/packages/new/edit">
+            <Button><Plus className="h-4 w-4" />New Package</Button>
+          </Link>
+        </div>
       </div>
       {status && <p className="rounded-[8px] border border-viaje-line bg-white p-3 text-sm text-viaje-soft">{status}</p>}
       <Card>
@@ -118,6 +123,7 @@ export function PackageList() {
           />
         </CardContent>
       </Card>
+      {showAirlines && <AirlineManagementModal onClose={() => setShowAirlines(false)} />}
     </div>
   );
 }

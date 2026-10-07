@@ -1,4 +1,5 @@
 import { packages as samplePackages } from "@/lib/sample-data";
+import { defaultAirlines, resolvePackageAirline } from "@/lib/airlines";
 import type { PackageStatus, TravelPackage } from "@/lib/types";
 
 export type PackageAvailabilityStatus = "available" | "limited" | "sold_out";
@@ -26,6 +27,7 @@ export function newPackage(): TravelPackage {
     country: "",
     type: "domestic",
     duration: "",
+    airlineId: "airline-cebu-pacific",
     airline: "Cebu Pacific",
     hotel: "3-4 Star Hotels",
     description: "",
@@ -52,6 +54,7 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
   const status = rawStatus === "archived"
     ? "unpublished"
     : packageStatuses.includes(rawStatus as PackageStatus) ? rawStatus as PackageStatus : "draft";
+  const airline = resolvePackageAirline({ airlineId: input?.airlineId, airline: input?.airline || fallback.airline }, defaultAirlines);
 
   return {
     id,
@@ -61,7 +64,8 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
     country: input?.country ?? fallback.country,
     type: input?.type === "international" ? "international" : "domestic",
     duration: input?.duration ?? fallback.duration,
-    airline: input?.airline || fallback.airline,
+    airlineId: input?.airlineId || airline.id,
+    airline: airline.name,
     hotel: input?.hotel || fallback.hotel,
     description: input?.description ?? fallback.description,
     coverImageUrl: input?.coverImageUrl ?? fallback.coverImageUrl,

@@ -9,7 +9,7 @@ import { IconSelect } from "@/components/admin/website-content-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { airlineOptions, getAirline } from "@/lib/airlines";
+import { defaultAirlines, resolvePackageAirline, type Airline } from "@/lib/airlines";
 import { newPackage, packageTypes } from "@/lib/package-content";
 import type { TravelPackage } from "@/lib/types";
 import { cmsIconOptions, type CmsIconName } from "@/lib/website-content";
@@ -63,9 +63,20 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   );
 }
 
-function AirlineSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function AirlineSelect({
+  value,
+  airlineId,
+  airlines,
+  onChange,
+}: {
+  value: string;
+  airlineId?: string;
+  airlines: Airline[];
+  onChange: (airline: Airline) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const selectedAirline = getAirline(value);
+  const selectedAirline = resolvePackageAirline({ airlineId, airline: value }, airlines.length ? airlines : defaultAirlines);
+  const selectableAirlines = airlines.filter((airline) => airline.status === "ACTIVE" || airline.id === selectedAirline.id);
 
   return (
     <label className={fieldClass}>
@@ -78,21 +89,21 @@ function AirlineSelect({ value, onChange }: { value: string; onChange: (value: s
           aria-expanded={open}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <img src={selectedAirline.logoSrc} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+            <img src={selectedAirline.logoUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
             <span className="truncate">{selectedAirline.name}</span>
           </span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-viaje-soft transition ${open ? "rotate-180" : ""}`} />
         </button>
         {open && (
           <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-[10px] border border-viaje-line bg-white p-1.5 shadow-[0_18px_40px_-24px_rgba(15,36,56,0.55)]">
-            {airlineOptions.map((airline) => {
-              const selected = airline.name === selectedAirline.name;
+            {selectableAirlines.map((airline) => {
+              const selected = airline.id === selectedAirline.id || airline.name === selectedAirline.name;
               return (
                 <button
-                  key={airline.name}
+                  key={airline.id}
                   type="button"
                   onClick={() => {
-                    onChange(airline.name);
+                    onChange(airline);
                     setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between gap-3 rounded-[8px] px-3 py-2 text-left text-sm transition hover:bg-viaje-paperAlt ${
@@ -100,8 +111,9 @@ function AirlineSelect({ value, onChange }: { value: string; onChange: (value: s
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <img src={airline.logoSrc} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+                    <img src={airline.logoUrl} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
                     <span className="truncate">{airline.name}</span>
+                    {airline.status === "INACTIVE" && <span className="text-[10px] font-semibold uppercase text-viaje-soft">Inactive</span>}
                   </span>
                   {selected && <Check className="h-4 w-4 shrink-0" />}
                 </button>
@@ -263,6 +275,14 @@ export function PackageEditor({ packageId }: { packageId: string }) {
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const [showLeavePrompt, setShowLeavePrompt] = useState(false);
   const [draggedItineraryIndex, setDraggedItineraryIndex] = useState<number | null>(null);
+  const [airlines, setAirlines] = useState<Airline[]>(defaultAirlines);
+
+  useEffect(() => {
+    fetch("/api/admin/airlines")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load airlines")))
+      .then((data) => setAirlines(Array.isArray(data.airlines) ? data.airlines : defaultAirlines))
+      .catch(() => setAirlines(defaultAirlines));
+  }, []);
 
   useEffect(() => {
     if (isNew) {
@@ -441,7 +461,12 @@ export function PackageEditor({ packageId }: { packageId: string }) {
             <SelectField label="Type" value={pkg.type} options={packageTypes} onChange={(value) => update({ type: value as TravelPackage["type"] })} />
             <TextField label="Duration" value={pkg.duration} onChange={(value) => update({ duration: value })} />
             <PriceField value={pkg.price} onChange={(value) => update({ price: value })} />
-            <AirlineSelect value={pkg.airline ?? ""} onChange={(value) => update({ airline: value })} />
+            <AirlineSelect
+              value={pkg.airline ?? ""}
+              airlineId={pkg.airlineId}
+              airlines={airlines}
+              onChange={(airline) => update({ airlineId: airline.id, airline: airline.name })}
+            />
             <TextField label="Hotel" value={pkg.hotel ?? ""} onChange={(value) => update({ hotel: value })} />
             <div className="md:col-span-2">
               <label className={fieldClass}>
