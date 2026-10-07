@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQuotationWithItems } from "@/lib/quotations";
+import { getQuotationWithItems, quotationItemDetail } from "@/lib/quotations";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendQuotationEmail } from "@/lib/resend-template-registry";
 import { formatPeso } from "@/lib/utils";
@@ -42,15 +42,20 @@ export async function POST(request: NextRequest, { params }: { params: { quotati
   const quotationItemsHtml = quotation.items.map((item) => `
     <p>
       <strong>${escapeHtml(item.itemName)}</strong><br>
-      ${escapeHtml(item.remarks)}<br>
-      ${escapeHtml(formatPeso(item.amount))}
+      ${quotationItemDetail(item) ? `${escapeHtml(quotationItemDetail(item)?.label ?? "")}: ${escapeHtml(quotationItemDetail(item)?.value ?? "")}<br>` : ""}
+      Remarks: ${escapeHtml(item.remarks)}<br>
+      Amount: ${escapeHtml(formatPeso(item.amount))}
     </p>
   `).join("");
-  const quotationItemsText = quotation.items.map((item) => [
-    item.itemName,
-    item.remarks,
-    formatPeso(item.amount),
-  ].join("\n")).join("\n\n");
+  const quotationItemsText = quotation.items.map((item) => {
+    const detail = quotationItemDetail(item);
+    return [
+      item.itemName,
+      detail ? `${detail.label}: ${detail.value}` : "",
+      `Remarks: ${item.remarks}`,
+      `Amount: ${formatPeso(item.amount)}`,
+    ].filter(Boolean).join("\n");
+  }).join("\n\n");
 
   const result = await sendQuotationEmail({
     clientName: quotation.clientName,

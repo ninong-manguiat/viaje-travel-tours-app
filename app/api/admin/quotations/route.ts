@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
     contactNumber: normalizeContactNumber(body.contactNumber),
     status: "DRAFT",
     totalAmount: totalQuotationItems(items),
+    inclusions: String(body.inclusions || "").trim(),
+    exclusions: String(body.exclusions || "").trim(),
     paymentToken: "",
     paymentStatus: "UNPAID",
     latestPaymentId: "",

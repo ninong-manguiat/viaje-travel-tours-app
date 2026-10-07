@@ -30,6 +30,8 @@ type QuotationItem = {
   type: QuotationItemType;
   customName: string;
   itemName: string;
+  airline: string;
+  hotelName: string;
   remarks: string;
   amount: number;
   sortOrder: number;
@@ -49,6 +51,8 @@ type Quotation = {
   paymentToken: string;
   paymentStatus: "UNPAID" | "PENDING FOR VERIFICATION" | "VERIFIED" | "REJECTED";
   latestPaymentId: string;
+  inclusions: string;
+  exclusions: string;
   createdAt: string;
   updatedAt: string;
   finalizedAt: string;
@@ -67,6 +71,8 @@ const emptyQuotation: Quotation = {
   paymentToken: "",
   paymentStatus: "UNPAID",
   latestPaymentId: "",
+  inclusions: "",
+  exclusions: "",
   createdAt: "",
   updatedAt: "",
   finalizedAt: "",
@@ -77,6 +83,7 @@ const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje
 const fieldClass = "grid gap-2";
 const quotationInputClass = "h-12 bg-white px-3.5 py-3";
 const inputClass = "h-12 rounded-[10px] border border-viaje-line bg-white px-3.5 py-3 text-sm text-viaje-ink outline-none focus:ring-2 focus:ring-viaje-red/20";
+const textareaClass = "min-h-28 rounded-[10px] border border-viaje-line bg-white px-3.5 py-3 text-sm text-viaje-ink outline-none focus:ring-2 focus:ring-viaje-red/20";
 const errorClass = "mt-0.5 text-xs font-medium leading-5 text-viaje-red";
 type QuotationErrors = Partial<Record<"clientName" | "email" | "contactNumber" | "items", string>> & {
   itemErrors: Array<Partial<Record<"customName" | "remarks" | "amount", string>>>;
@@ -91,6 +98,8 @@ function newItem(sortOrder: number): QuotationItem {
     type: "Flight Fee",
     customName: "",
     itemName: "Flight Fee",
+    airline: "",
+    hotelName: "",
     remarks: "",
     amount: 0,
     sortOrder,
@@ -232,7 +241,11 @@ export function QuotationBuilderManagement() {
       if (!current) return current;
       const items = [...current.items];
       items[index] = { ...items[index], ...values };
-      if (values.type && values.type !== "Other") items[index].customName = "";
+      if (values.type) {
+        if (values.type !== "Other") items[index].customName = "";
+        if (values.type !== "Flight Fee") items[index].airline = "";
+        if (values.type !== "Hotel Accommodation") items[index].hotelName = "";
+      }
       items[index].itemName = itemName(items[index]);
       return { ...current, items };
     });
@@ -492,49 +505,81 @@ export function QuotationBuilderManagement() {
                   {editing.items.map((item, index) => {
                     const itemErrors = quotationErrors.itemErrors[index] ?? {};
                     const touched = quotationItemTouched[item.id] ?? {};
+                    const topGridClass = item.type === "Flight Fee" || item.type === "Hotel Accommodation" || item.type === "Other"
+                      ? "lg:grid-cols-[200px_minmax(0,1fr)_160px_44px]"
+                      : "lg:grid-cols-[200px_160px_44px]";
                     return (
-                      <div key={item.id} className="grid gap-4 rounded-[10px] border border-viaje-line bg-viaje-paper p-4 lg:grid-cols-[200px_minmax(0,1fr)_160px_44px] lg:items-start">
+                      <div key={item.id} className="grid gap-4 rounded-[10px] border border-viaje-line bg-viaje-paper p-4">
+                        <div className={`grid gap-4 lg:items-start ${topGridClass}`}>
+                          <label className={fieldClass}>
+                            <span className={labelClass}>Service / Item Type</span>
+                            <select value={item.type} onChange={(event) => updateItem(index, { type: event.target.value as QuotationItemType })} className={inputClass}>
+                              {itemTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                          </label>
+                          {item.type === "Flight Fee" && (
+                            <label className={fieldClass}>
+                              <span className={labelClass}>Airline</span>
+                              <Input className={quotationInputClass} value={item.airline} onChange={(event) => updateItem(index, { airline: event.target.value })} />
+                            </label>
+                          )}
+                          {item.type === "Hotel Accommodation" && (
+                            <label className={fieldClass}>
+                              <span className={labelClass}>Hotel Name</span>
+                              <Input className={quotationInputClass} value={item.hotelName} onChange={(event) => updateItem(index, { hotelName: event.target.value })} />
+                            </label>
+                          )}
+                          {item.type === "Other" && (
+                            <label className={fieldClass}>
+                              <span className={labelClass}>Custom Item Name</span>
+                              <Input
+                                className={quotationInputClass}
+                                value={item.customName}
+                                onBlur={() => touchQuotationItemField(item.id, "customName")}
+                                onChange={(event) => updateItem(index, { customName: event.target.value })}
+                              />
+                              {(quotationSubmitted || touched.customName) && itemErrors.customName && <span className={errorClass}>{itemErrors.customName}</span>}
+                            </label>
+                          )}
+                          <label className={fieldClass}>
+                            <span className={labelClass}>Amount</span>
+                            <Input type="number" min="0" step="1" className={quotationInputClass} value={item.amount || ""} onBlur={() => touchQuotationItemField(item.id, "amount")} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
+                            {(quotationSubmitted || touched.amount) && itemErrors.amount && <span className={errorClass}>{itemErrors.amount}</span>}
+                          </label>
+                          <button type="button" onClick={() => removeItem(index)} className="mt-7 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                         <label className={fieldClass}>
-                          <span className={labelClass}>Service / Item Type</span>
-                          <select value={item.type} onChange={(event) => updateItem(index, { type: event.target.value as QuotationItemType })} className={inputClass}>
-                            {itemTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                          </select>
-                        </label>
-                        <label className={fieldClass}>
-                          <span className={labelClass}>{item.type === "Other" ? "Custom Item Name" : "Remarks"}</span>
+                          <span className={labelClass}>Remarks</span>
                           <Input
                             className={quotationInputClass}
-                            value={item.type === "Other" ? item.customName : item.remarks}
-                            onBlur={() => touchQuotationItemField(item.id, item.type === "Other" ? "customName" : "remarks")}
-                            onChange={(event) => updateItem(index, item.type === "Other" ? { customName: event.target.value } : { remarks: event.target.value })}
+                            value={item.remarks}
+                            onBlur={() => touchQuotationItemField(item.id, "remarks")}
+                            onChange={(event) => updateItem(index, { remarks: event.target.value })}
                           />
-                          {item.type === "Other" ? (
-                            (quotationSubmitted || touched.customName) && itemErrors.customName && <span className={errorClass}>{itemErrors.customName}</span>
-                          ) : (
-                            (quotationSubmitted || touched.remarks) && itemErrors.remarks && <span className={errorClass}>{itemErrors.remarks}</span>
-                          )}
+                          {(quotationSubmitted || touched.remarks) && itemErrors.remarks && <span className={errorClass}>{itemErrors.remarks}</span>}
                         </label>
-                        <label className={fieldClass}>
-                          <span className={labelClass}>Amount</span>
-                          <Input type="number" min="0" step="1" className={quotationInputClass} value={item.amount || ""} onBlur={() => touchQuotationItemField(item.id, "amount")} onChange={(event) => updateItem(index, { amount: Number(event.target.value) })} />
-                          {(quotationSubmitted || touched.amount) && itemErrors.amount && <span className={errorClass}>{itemErrors.amount}</span>}
-                        </label>
-                        <button type="button" onClick={() => removeItem(index)} className="mt-7 flex h-10 w-10 items-center justify-center rounded-full text-viaje-red hover:bg-white" aria-label="Remove quotation item">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                        {item.type === "Other" && (
-                          <label className={`${fieldClass} lg:col-span-4`}>
-                            <span className={labelClass}>Remarks</span>
-                            <Input className={quotationInputClass} value={item.remarks} onBlur={() => touchQuotationItemField(item.id, "remarks")} onChange={(event) => updateItem(index, { remarks: event.target.value })} />
-                            {(quotationSubmitted || touched.remarks) && itemErrors.remarks && <span className={errorClass}>{itemErrors.remarks}</span>}
-                          </label>
-                        )}
                       </div>
                     );
                   })}
                   <div className="flex justify-end rounded-[10px] border border-viaje-line bg-white p-4 text-lg font-bold text-viaje-navy">
                     Grand Total: {formatPeso(editingTotal)}
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>Inclusions & Exclusions</CardTitle></CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <label className={fieldClass}>
+                    <span className={labelClass}>Inclusions</span>
+                    <textarea className={textareaClass} value={editing.inclusions} onChange={(event) => updateEditing({ inclusions: event.target.value })} placeholder="Round-trip airfare&#10;Hotel accommodation&#10;Airport transfers" />
+                  </label>
+                  <label className={fieldClass}>
+                    <span className={labelClass}>Exclusions</span>
+                    <textarea className={textareaClass} value={editing.exclusions} onChange={(event) => updateEditing({ exclusions: event.target.value })} placeholder="Travel insurance&#10;Personal expenses&#10;Terminal fees" />
+                  </label>
                 </CardContent>
               </Card>
 

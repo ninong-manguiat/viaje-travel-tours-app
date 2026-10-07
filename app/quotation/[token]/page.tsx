@@ -2,10 +2,14 @@ import { notFound } from "next/navigation";
 import { FileDown } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getQuotationByToken } from "@/lib/quotations";
+import { getQuotationByToken, quotationItemDetail } from "@/lib/quotations";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+function multilineText(value: string) {
+  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
 
 export default async function PublicQuotationPage({ params }: { params: { token: string } }) {
   const quotation = await getQuotationByToken("publicToken", params.token);
@@ -38,14 +42,31 @@ export default async function PublicQuotationPage({ params }: { params: { token:
               <CardTitle>Quotation Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="hidden border-b border-viaje-line pb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-viaje-soft sm:grid sm:grid-cols-[minmax(0,1.25fr)_minmax(0,2.75fr)_minmax(110px,1fr)] sm:gap-4">
+                <span>Service</span>
+                <span>Additional Detail / Remarks</span>
+                <span className="text-right">Amount</span>
+              </div>
               <div className="divide-y divide-viaje-line">
                 {quotation.items.map((item) => (
-                  <div key={item.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_150px] sm:items-start">
-                    <div>
+                  <div key={item.id} className="grid gap-3 py-5 sm:grid-cols-[minmax(0,1.25fr)_minmax(0,2.75fr)_minmax(110px,1fr)] sm:gap-4 sm:items-start">
+                    <div className="min-w-0">
+                      <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-viaje-soft sm:hidden">Service</p>
                       <h2 className="font-semibold text-viaje-navy">{item.itemName}</h2>
-                      <p className="mt-1 text-sm leading-6 text-viaje-soft">{item.remarks}</p>
                     </div>
-                    <p className="text-right font-bold text-viaje-navy">{formatPeso(item.amount)}</p>
+                    <div className="min-w-0 space-y-1 text-sm leading-6 text-viaje-soft">
+                      <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-viaje-soft sm:hidden">Additional Detail / Remarks</p>
+                      {quotationItemDetail(item) && (
+                        <p className="whitespace-normal break-words">
+                          <span className="font-semibold text-viaje-ink">{quotationItemDetail(item)?.label}:</span> {quotationItemDetail(item)?.value}
+                        </p>
+                      )}
+                      <p className="whitespace-normal break-words"><span className="font-semibold text-viaje-ink">Remarks:</span> {item.remarks}</p>
+                    </div>
+                    <div className="min-w-0 sm:text-right">
+                      <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-viaje-soft sm:hidden">Amount</p>
+                      <p className="font-bold text-viaje-navy">{formatPeso(item.amount)}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -53,6 +74,26 @@ export default async function PublicQuotationPage({ params }: { params: { token:
                 <span>Grand Total</span>
                 <span>{formatPeso(quotation.totalAmount)}</span>
               </div>
+              {(quotation.inclusions || quotation.exclusions) && (
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  {quotation.inclusions && (
+                    <div className="rounded-[10px] border border-viaje-line bg-white p-4">
+                      <h2 className="font-semibold text-viaje-navy">Inclusions</h2>
+                      <div className="mt-2 space-y-1 text-sm leading-6 text-viaje-soft">
+                        {multilineText(quotation.inclusions).map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
+                      </div>
+                    </div>
+                  )}
+                  {quotation.exclusions && (
+                    <div className="rounded-[10px] border border-viaje-line bg-white p-4">
+                      <h2 className="font-semibold text-viaje-navy">Exclusions</h2>
+                      <div className="mt-2 space-y-1 text-sm leading-6 text-viaje-soft">
+                        {multilineText(quotation.exclusions).map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

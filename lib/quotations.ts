@@ -23,6 +23,8 @@ export type QuotationItem = {
   type: QuotationItemType;
   customName: string;
   itemName: string;
+  airline: string;
+  hotelName: string;
   remarks: string;
   amount: number;
   sortOrder: number;
@@ -42,6 +44,8 @@ export type Quotation = {
   paymentToken: string;
   paymentStatus: QuotationPaymentStatus;
   latestPaymentId: string;
+  inclusions: string;
+  exclusions: string;
   createdAt: string;
   updatedAt: string;
   finalizedAt: string;
@@ -66,6 +70,8 @@ export function newQuotationItem(quotationId = "", sortOrder = 0): QuotationItem
     type: "Flight Fee",
     customName: "",
     itemName: "Flight Fee",
+    airline: "",
+    hotelName: "",
     remarks: "",
     amount: 0,
     sortOrder,
@@ -76,6 +82,12 @@ export function newQuotationItem(quotationId = "", sortOrder = 0): QuotationItem
 
 export function displayItemName(item: Pick<QuotationItem, "type" | "customName">) {
   return item.type === "Other" ? item.customName.trim() || "Other" : item.type;
+}
+
+export function quotationItemDetail(item: Pick<QuotationItem, "type" | "airline" | "hotelName">) {
+  if (item.type === "Flight Fee" && item.airline.trim()) return { label: "Airline", value: item.airline.trim() };
+  if (item.type === "Hotel Accommodation" && item.hotelName.trim()) return { label: "Hotel Name", value: item.hotelName.trim() };
+  return null;
 }
 
 export function normalizeAmount(value: unknown) {
@@ -103,6 +115,8 @@ export function normalizeQuotationItem(id: string, data: Record<string, unknown>
     type,
     customName: String(data.customName || "").trim(),
     itemName: String(data.itemName || "").trim(),
+    airline: type === "Flight Fee" ? String(data.airline || "").trim() : "",
+    hotelName: type === "Hotel Accommodation" ? String(data.hotelName || "").trim() : "",
     remarks: String(data.remarks || "").trim(),
     amount: normalizeAmount(data.amount),
     sortOrder: Number.isFinite(Number(data.sortOrder)) ? Number(data.sortOrder) : 0,
@@ -130,6 +144,8 @@ export function normalizeQuotation(id: string, data: Record<string, unknown>, it
     paymentToken: String(data.paymentToken || ""),
     paymentStatus,
     latestPaymentId: String(data.latestPaymentId || ""),
+    inclusions: String(data.inclusions || "").trim(),
+    exclusions: String(data.exclusions || "").trim(),
     createdAt: serializeDate(data.createdAt as MaybeTimestamp),
     updatedAt: serializeDate(data.updatedAt as MaybeTimestamp),
     finalizedAt: serializeDate(data.finalizedAt as MaybeTimestamp),

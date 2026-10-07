@@ -80,6 +80,8 @@ export async function PUT(request: NextRequest, { params }: { params: { quotatio
     clientName: String(body.clientName || "").trim(),
     email: String(body.email || "").trim(),
     contactNumber: normalizeContactNumber(body.contactNumber),
+    inclusions: String(body.inclusions || "").trim(),
+    exclusions: String(body.exclusions || "").trim(),
     totalAmount: totalQuotationItems(items),
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });

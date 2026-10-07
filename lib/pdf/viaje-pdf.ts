@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { SimplePdf, type PdfRow } from "@/lib/pdf/simple-pdf";
 import { getPackageById } from "@/lib/package-data";
 import { normalizePaymentMethod } from "@/lib/payment-methods";
-import { getQuotationWithItems, type Quotation } from "@/lib/quotations";
+import { getQuotationWithItems, quotationItemDetail, type Quotation } from "@/lib/quotations";
 import { defaultWebsiteContent, mergeWebsiteContent } from "@/lib/website-content";
 import { formatDate } from "@/lib/utils";
 
@@ -60,6 +60,14 @@ function pdfText(value: unknown) {
 
 function formatPdfPeso(value: number) {
   return `PHP ${new Intl.NumberFormat("en-PH", { maximumFractionDigits: 0 }).format(value)}`;
+}
+
+function quotationDetailText(item: Quotation["items"][number]) {
+  const detail = quotationItemDetail(item);
+  return [
+    detail ? `${detail.label}: ${detail.value}` : "",
+    item.remarks ? `Remarks: ${item.remarks}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 function fullName(input: Record<string, unknown> | undefined, fallback = "N/A") {
@@ -204,11 +212,19 @@ export async function quotationPdfResponse(quotationId: string) {
   pdf.section("Quotation Details");
   const detailRows: PdfRow[] = quotation.items.map((item) => [
     item.itemName,
-    item.remarks,
+    quotationDetailText(item),
     formatPdfPeso(item.amount),
   ]);
-  pdf.table(["Service", "Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
+  pdf.table(["Service", "Additional Detail / Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
   pdf.keyValues([["Total Amount", formatPdfPeso(quotation.totalAmount)]], 1);
+  if (quotation.inclusions) {
+    pdf.section("Inclusions");
+    quotation.inclusions.split(/\r?\n/).map(pdfText).filter(Boolean).forEach((line) => pdf.bullet(line, 8.8));
+  }
+  if (quotation.exclusions) {
+    pdf.section("Exclusions");
+    quotation.exclusions.split(/\r?\n/).map(pdfText).filter(Boolean).forEach((line) => pdf.bullet(line, 8.8));
+  }
 
   return downloadResponse(pdf.toBuffer(), `Quotation-${quotation.referenceNumber || quotation.id}.pdf`);
 }
@@ -241,10 +257,10 @@ export async function quotationAcknowledgementReceiptPdfResponse(quotationId: st
   pdf.section("Quotation Items / Services");
   const detailRows: PdfRow[] = quotation.items.map((item) => [
     item.itemName,
-    item.remarks,
+    quotationDetailText(item),
     formatPdfPeso(item.amount),
   ]);
-  pdf.table(["Service", "Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
+  pdf.table(["Service", "Additional Detail / Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
 
   pdf.section("Payment Information");
   pdf.keyValues([
