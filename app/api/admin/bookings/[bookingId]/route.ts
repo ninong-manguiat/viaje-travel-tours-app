@@ -211,16 +211,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const overage = allocatedAmount + amount - totalAmount;
     const remainingBalanceItem = schedule.find((item) => item.id === "remaining-balance");
 
-    if (overage > 0 && (!remainingBalanceItem || Number(remainingBalanceItem.amount || 0) < overage)) {
-      return NextResponse.json({ error: "Payment schedule cannot exceed the total booking amount." }, { status: 400 });
-    }
-
-    const adjustedSchedule = overage > 0
+    const adjustedSchedule = overage > 0 && remainingBalanceItem && Number(remainingBalanceItem.amount || 0) >= overage
       ? schedule.map((item) => item.id === "remaining-balance" ? { ...item, amount: Number(item.amount || 0) - overage } : item)
       : schedule;
     const scheduleItem = { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" };
     const paymentSchedule = [...adjustedSchedule, scheduleItem];
     const amountPaid = paidFromSchedule(paymentSchedule);
+    const authoritativeTotal = paymentSchedule.reduce((sum, item) => sum + Number(item.amount || 0), 0) || totalAmount;
     const paymentLog = {
       id: `pay-${params.bookingId}-${scheduleItem.id}`,
       transactionId: "",
@@ -246,7 +243,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
       paymentSchedule,
       paymentStatus: derivedPaymentStatus(paymentSchedule),
       amountPaid,
-      balance: Math.max(0, totalAmount - amountPaid),
+      balance: Math.max(0, authoritativeTotal - amountPaid),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     await adminDb.collection("payments").doc(paymentLog.id).set(paymentLog, { merge: true });

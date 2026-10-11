@@ -5,16 +5,32 @@ import { getPublicBooking } from "@/lib/public-bookings";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaymentPage({ params }: { params: { id: string } }) {
+function selectedScheduleIds(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value.join(",") : value || "";
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function isPayable(status?: string) {
+  return ["pending", "unpaid", "rejected"].includes(String(status || "pending").toLowerCase());
+}
+
+export default async function PaymentPage({ params, searchParams }: { params: { id: string }; searchParams?: { schedules?: string | string[] } }) {
   const current = await getPublicBooking(params.id);
   if (!current) notFound();
-  if (current.summary.remainingBalance <= 0) notFound();
+
+  const requestedIds = selectedScheduleIds(searchParams?.schedules);
+  const payableSchedules = current.booking.paymentSchedule.filter((item) => item.id && isPayable(item.status));
+  const selectedSchedules = requestedIds.length
+    ? payableSchedules.filter((item) => requestedIds.includes(String(item.id)))
+    : payableSchedules;
+  if (!selectedSchedules.length) notFound();
 
   const paymentMethods = await listPaymentMethods();
   return (
     <BookingPaymentClient
       booking={current.booking}
-      remainingBalance={current.summary.remainingBalance}
+      remainingBalance={selectedSchedules.reduce((sum, item) => sum + Number(item.amount || 0), 0)}
+      selectedSchedules={selectedSchedules}
       paymentMethods={paymentMethods}
       token={params.id}
     />

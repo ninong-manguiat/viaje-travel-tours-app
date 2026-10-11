@@ -20,14 +20,22 @@ type BookingPaymentSummary = {
   packageTitle: string;
 };
 
+type PaymentScheduleSelection = {
+  id?: string;
+  label?: string;
+  amount?: number;
+};
+
 export function BookingPaymentClient({
   booking,
   remainingBalance,
+  selectedSchedules,
   paymentMethods,
   token,
 }: {
   booking: BookingPaymentSummary;
   remainingBalance: number;
+  selectedSchedules: PaymentScheduleSelection[];
   paymentMethods: PaymentMethod[];
   token: string;
 }) {
@@ -56,6 +64,7 @@ export function BookingPaymentClient({
         paymentMethodReferenceNumber: selectedPaymentMethod.referenceNumber,
         receiptUrl,
         notes,
+        scheduleIds: selectedSchedules.map((item) => item.id).filter(Boolean),
       }),
     });
     setSubmitting(false);
@@ -104,6 +113,14 @@ export function BookingPaymentClient({
             <CardHeader><CardTitle>Amount Due</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <p className="text-3xl font-bold text-viaje-navy">{formatPeso(remainingBalance)}</p>
+              <div className="space-y-2 text-sm">
+                {selectedSchedules.map((item) => (
+                  <div key={item.id} className="flex justify-between gap-4">
+                    <span>{item.label || "Selected payment"}</span>
+                    <strong className="text-viaje-navy">{formatPeso(Number(item.amount || 0))}</strong>
+                  </div>
+                ))}
+              </div>
               <p className="text-sm text-muted-foreground">Upload proof after sending payment through your preferred manual channel.</p>
             </CardContent>
           </Card>

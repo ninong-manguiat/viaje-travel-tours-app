@@ -42,6 +42,7 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
   const [selectedPayment, setSelectedPayment] = useState<PaymentLog | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [verifyingPaymentId, setVerifyingPaymentId] = useState("");
+  const [deletingPaymentId, setDeletingPaymentId] = useState("");
   const [currentCursor, setCurrentCursor] = useState("");
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState("");
@@ -104,6 +105,26 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
     setPayments((current) => current.map((item) => item.id === payment.id ? { ...item, ...updatedPayment } : item));
     setSelectedPayment((current) => current?.id === payment.id ? { ...current, ...updatedPayment } : current);
     setMessage(status === "verified" ? "Payment verified." : "Payment rejected.");
+  }
+
+  async function deletePayment(payment: PaymentLog) {
+    const reference = payment.referenceNumber || payment.paymentName || payment.id;
+    if (!window.confirm(`Delete Payment Log?\n\nAre you sure you want to delete ${reference}?`)) return;
+
+    setDeletingPaymentId(payment.id);
+    const response = await fetch(`/api/admin/payments/${payment.id}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    setDeletingPaymentId("");
+
+    if (!response.ok) {
+      setMessage(data?.error ?? "Unable to delete payment log.");
+      return;
+    }
+
+    setPayments((current) => current.filter((item) => item.id !== payment.id));
+    setTotalPayments((current) => Math.max(0, current - 1));
+    setMessage("Payment log deleted.");
+    closePayment();
   }
 
   function openPayment(payment: PaymentLog) {
@@ -307,6 +328,11 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                         </p>
                       )}
                       <Button type="button" variant="outline" onClick={closePayment}>Close</Button>
+                      {selectedPayment.status === "pending" && !selectedPayment.receiptUrl && Number(selectedPayment.amountSubmitted || 0) <= 0 && (
+                        <Button type="button" variant="outline" className="text-viaje-red" onClick={() => deletePayment(selectedPayment)} disabled={deletingPaymentId === selectedPayment.id}>
+                          {deletingPaymentId === selectedPayment.id ? "Deleting..." : "Delete Payment Log"}
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 </>

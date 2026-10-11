@@ -41,6 +41,14 @@ function paidFromSchedule(schedule: Array<{ amount?: number; status?: string }>)
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(normalizedStatus(item.status)) ? sum + numberValue(item.amount) : sum, 0);
 }
 
+function activeScheduleTotal(schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.reduce((sum, item) => ["cancelled", "deleted"].includes(normalizedStatus(item.status)) ? sum : sum + numberValue(item.amount), 0);
+}
+
+function authoritativeTotal(booking: FirebaseFirestore.DocumentData, schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.length ? activeScheduleTotal(schedule) : numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
+}
+
 function matchingScheduleId(payment: FirebaseFirestore.DocumentData, schedule: Array<{ id?: string; label?: string; amount?: number }>) {
   const directId = String(payment.paymentScheduleId || payment.scheduleItemId || "");
   if (directId && schedule.some((item) => item.id === directId)) return directId;
@@ -136,7 +144,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
       const paymentSchedule = schedule.map((item) =>
         item.id === scheduleItemId ? { ...item, status } : item
       );
-      const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
+      const totalAmount = authoritativeTotal(booking, paymentSchedule);
       const amountPaid = paidFromSchedule(paymentSchedule);
 
       await bookingRef.set({
@@ -165,4 +173,61 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
   });
 
   return NextResponse.json({ payment: serializePayment(params.paymentId, { ...payment, status, updatedAt: new Date().toISOString() }) });
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { paymentId: string } }) {
+  if (!isAdmin(request)) return unauthorized();
+
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const paymentRef = adminDb.collection("payments").doc(params.paymentId);
+  const paymentDoc = await paymentRef.get();
+  if (!paymentDoc.exists) return NextResponse.json({ error: "Payment not found." }, { status: 404 });
+
+  const payment = paymentDoc.data() ?? {};
+  const isPending = normalizedStatus(payment.status) === "pending";
+  const hasSubmission = Boolean(String(payment.receiptUrl || "").trim()) || numberValue(payment.amountSubmitted) > 0 || Boolean(String(payment.transactionId || "").trim());
+
+  if (!isPending || hasSubmission) {
+    return NextResponse.json({ error: "Only pending payment logs without submitted payment history can be deleted." }, { status: 400 });
+  }
+
+  let updatedBooking: Record<string, unknown> | null = null;
+  if (payment.bookingId && payment.paymentScheduleId) {
+    const bookingRef = adminDb.collection("bookings").doc(String(payment.bookingId));
+    const bookingDoc = await bookingRef.get();
+    const booking = bookingDoc.exists ? bookingDoc.data() ?? {} : null;
+    const schedule = Array.isArray(booking?.paymentSchedule) ? booking.paymentSchedule : [];
+
+    if (booking) {
+      const paymentSchedule = schedule.filter((item) => item.id !== payment.paymentScheduleId);
+      const totalAmount = authoritativeTotal(booking, paymentSchedule);
+      const amountPaid = paidFromSchedule(paymentSchedule);
+      updatedBooking = {
+        paymentSchedule,
+        paymentStatus: derivedPaymentStatus(paymentSchedule),
+        status: derivedBookingStatus(booking.status, paymentSchedule),
+        amountPaid,
+        balance: Math.max(0, totalAmount - amountPaid),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      await bookingRef.set(updatedBooking, { merge: true });
+    }
+  }
+
+  await paymentRef.delete();
+
+  const reference = String(payment.bookingReference || payment.bookingId || payment.quotationReference || payment.quotationId || params.paymentId);
+  await logActivity({
+    type: "payment.deleted",
+    module: "payments",
+    entityType: "payment",
+    entityId: params.paymentId,
+    reference,
+    actorName: "Admin",
+    description: `Admin deleted pending payment log ${reference}.`,
+    href: "/admin/payments/verification",
+    metadata: { paymentScheduleId: payment.paymentScheduleId || "" },
+  });
+
+  return NextResponse.json({ deleted: true, booking: updatedBooking });
 }

@@ -14,8 +14,8 @@ function derivedPaymentStatus(schedule: Array<{ status?: string }>) {
   return "pending";
 }
 
-function nextPayableScheduleItem(schedule: Array<{ id?: string; label?: string; amount?: number; dueDate?: string; status?: string }>) {
-  return schedule.find((item) => !["verified", "paid", "for_verification"].includes(normalizedStatus(item.status)));
+function isPayableSchedule(item: { status?: string }) {
+  return ["pending", "unpaid", "rejected"].includes(normalizedStatus(item.status || "pending"));
 }
 
 export async function POST(request: NextRequest, { params }: { params: { bookingId: string } }) {
@@ -26,12 +26,10 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   const summary = currentBookingBalance(booking, payments);
   if (summary.remainingBalance <= 0) return NextResponse.json({ error: "This booking is already fully paid." }, { status: 409 });
 
-  const scheduleItem = nextPayableScheduleItem(booking.paymentSchedule);
-  if (booking.paymentSchedule.length && !scheduleItem) {
-    return NextResponse.json({ error: "A payment is already submitted for verification." }, { status: 409 });
-  }
-
   const body = await request.json().catch(() => ({}));
+  const requestedScheduleIds = Array.isArray(body?.scheduleIds)
+    ? body.scheduleIds.map((item: unknown) => String(item || "").trim()).filter(Boolean)
+    : [];
   const paymentMethodId = String(body?.paymentMethodId || "");
   const paymentMethodBank = String(body?.paymentMethodBank || "");
   const paymentMethodReferenceNumber = String(body?.paymentMethodReferenceNumber || "");
@@ -42,55 +40,65 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     return NextResponse.json({ error: "Payment method and proof of payment are required." }, { status: 400 });
   }
 
+  const selectedSchedule = booking.paymentSchedule.filter((item) => item.id && requestedScheduleIds.includes(String(item.id)));
+  if (!requestedScheduleIds.length || selectedSchedule.length !== requestedScheduleIds.length) {
+    return NextResponse.json({ error: "Select valid payment schedules before submitting payment." }, { status: 400 });
+  }
+  if (selectedSchedule.some((item) => !isPayableSchedule(item))) {
+    return NextResponse.json({ error: "One or more selected schedules are no longer payable." }, { status: 409 });
+  }
+
   const { adminDb } = await import("@/lib/firebase-admin");
   const transactionId = `txn-booking-${Date.now()}`;
-  const amountDue = Number(scheduleItem?.amount || summary.remainingBalance);
-  let paymentId = `pay-${Date.now()}`;
-  let existingPayment: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+  const amountDue = selectedSchedule.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const submittedPayments = [];
 
-  if (scheduleItem?.id) {
+  for (const scheduleItem of selectedSchedule) {
+    let paymentId = `pay-${Date.now()}-${scheduleItem.id}`;
+    let existingPayment: FirebaseFirestore.QueryDocumentSnapshot | null = null;
     const existingPaymentSnapshot = await adminDb.collection("payments")
       .where("bookingId", "==", booking.id)
-      .where("paymentScheduleId", "==", scheduleItem.id)
+      .where("paymentScheduleId", "==", String(scheduleItem.id))
       .limit(1)
       .get();
     existingPayment = existingPaymentSnapshot.docs[0] ?? null;
     if (existingPayment) paymentId = existingPayment.id;
+
+    const payment = {
+      id: paymentId,
+      transactionId,
+      bookingId: booking.id,
+      clientId: null,
+      source: "BOOKING",
+      bookingReference: booking.reference,
+      paymentName: scheduleItem.label || "Manual Balance Payment",
+      paymentScheduleId: scheduleItem.id || "",
+      method: paymentMethodBank,
+      paymentMethodId,
+      paymentMethodReferenceNumber,
+      referenceNumber: "",
+      amountExpected: Number(scheduleItem.amount || 0),
+      amountSubmitted: Number(scheduleItem.amount || 0),
+      receiptUrl,
+      paymentDate: new Date().toISOString().slice(0, 10),
+      notes,
+      status: "for_verification",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    await adminDb.collection("payments").doc(paymentId).set({
+      ...payment,
+      createdAt: existingPayment ? existingPayment.data().createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+    }, { merge: true });
+    submittedPayments.push(payment);
   }
 
-  const payment = {
-    id: paymentId,
-    transactionId,
-    bookingId: booking.id,
-    clientId: null,
-    source: "BOOKING",
-    bookingReference: booking.reference,
-    paymentName: scheduleItem?.label || "Manual Balance Payment",
-    paymentScheduleId: scheduleItem?.id || "",
-    method: paymentMethodBank,
-    paymentMethodId,
-    paymentMethodReferenceNumber,
-    referenceNumber: "",
-    amountExpected: amountDue,
-    amountSubmitted: amountDue,
-    receiptUrl,
-    paymentDate: new Date().toISOString().slice(0, 10),
-    notes,
-    status: "for_verification",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-
-  await adminDb.collection("payments").doc(paymentId).set({
-    ...payment,
-    createdAt: existingPayment ? existingPayment.data().createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
-  }, { merge: true });
-  const paymentSchedule = scheduleItem
-    ? booking.paymentSchedule.map((item) => item.id === scheduleItem.id ? { ...item, status: "for_verification" } : item)
-    : booking.paymentSchedule;
+  const selectedIdSet = new Set(selectedSchedule.map((item) => String(item.id)));
+  const paymentSchedule = booking.paymentSchedule.map((item) => selectedIdSet.has(String(item.id)) ? { ...item, status: "for_verification" } : item);
   await adminDb.collection("bookings").doc(booking.id).set({
-    ...(scheduleItem ? { paymentSchedule } : {}),
-    paymentStatus: scheduleItem ? derivedPaymentStatus(paymentSchedule) : "for_verification",
+    paymentSchedule,
+    paymentStatus: derivedPaymentStatus(paymentSchedule),
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
@@ -100,13 +108,13 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     type: "payment.submitted",
     module: "payments",
     entityType: "payment",
-    entityId: paymentId,
+    entityId: submittedPayments[0]?.id || transactionId,
     reference: booking.reference,
     actorName,
     description: `${actorName || "A customer"} submitted a balance payment for ${booking.reference}.`,
     href: "/admin/payments/verification",
-    metadata: { bookingId: booking.id, paymentScheduleId: scheduleItem?.id || "", amountSubmitted: amountDue },
+    metadata: { bookingId: booking.id, paymentScheduleIds: Array.from(selectedIdSet).join(","), amountSubmitted: amountDue },
   });
 
-  return NextResponse.json({ payment });
+  return NextResponse.json({ payments: submittedPayments, amountSubmitted: amountDue });
 }

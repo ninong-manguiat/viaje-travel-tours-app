@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileDown } from "lucide-react";
+import { BookingPaymentScheduleSelector } from "@/components/domain/booking-payment-schedule-selector";
 import { StatusBadge } from "@/components/domain/status-badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { getPackageById } from "@/lib/package-data";
@@ -16,6 +15,7 @@ export default async function BookingDetailsPage({ params }: { params: { booking
   if (!current) notFound();
 
   const { booking, payments, summary } = current;
+  const isFullyPaid = summary.remainingBalance <= 0 && !summary.hasOutstandingPaymentSchedules && !summary.hasPendingVerificationPayments;
   const pkg = booking.packageId ? await getPackageById(booking.packageId) : null;
   const contactName = [booking.groupContact.firstName, booking.groupContact.lastName]
     .map((value) => String(value ?? "").trim())
@@ -57,27 +57,7 @@ export default async function BookingDetailsPage({ params }: { params: { booking
           <Card>
             <CardHeader><CardTitle>Payment Schedule</CardTitle></CardHeader>
             <CardContent>
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Payment</TH>
-                    <TH>Amount</TH>
-                    <TH>Due Date</TH>
-                    <TH>Status</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {!booking.paymentSchedule.length && <TR><TD colSpan={4}>No payment schedule available.</TD></TR>}
-                  {booking.paymentSchedule.map((item, index) => (
-                    <TR key={item.id || `${item.label}-${index}`}>
-                      <TD>{item.label || `Payment ${index + 1}`}</TD>
-                      <TD>{formatPeso(Number(item.amount || 0))}</TD>
-                      <TD>{item.dueDate ? formatDate(item.dueDate) : "N/A"}</TD>
-                      <TD><StatusBadge status={item.status || "pending"} /></TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
+              <BookingPaymentScheduleSelector token={params.bookingId} schedule={booking.paymentSchedule} />
             </CardContent>
           </Card>
 
@@ -122,13 +102,17 @@ export default async function BookingDetailsPage({ params }: { params: { booking
               </div>
             </div>
 
-            {summary.remainingBalance > 0 ? (
-              <Link href={`/book/${encodeURIComponent(params.bookingId)}/payment`}>
-                <Button className="w-full">Make a Payment</Button>
-              </Link>
-            ) : (
+            {isFullyPaid ? (
               <div className="rounded-[10px] border border-viaje-line bg-viaje-paperAlt p-4 text-sm font-semibold text-viaje-green">
                 This booking is fully paid.
+              </div>
+            ) : summary.hasPendingVerificationPayments && !summary.hasOutstandingPaymentSchedules ? (
+              <div className="rounded-[10px] border border-viaje-line bg-viaje-paperAlt p-4 text-sm font-semibold text-viaje-navy">
+                Payment submitted for verification.
+              </div>
+            ) : (
+              <div className="rounded-[10px] border border-viaje-line bg-viaje-paperAlt p-4 text-sm text-viaje-soft">
+                Select payable schedules in the Payment Schedule section to continue payment.
               </div>
             )}
           </CardContent>

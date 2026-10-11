@@ -2,6 +2,7 @@ import "server-only";
 
 export type PublicBookingPayment = {
   id: string;
+  paymentScheduleId: string;
   paymentName: string;
   method: string;
   referenceNumber: string;
@@ -56,13 +57,28 @@ export function paidFromSchedule(schedule: PublicBooking["paymentSchedule"]) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(String(item.status || "").toLowerCase()) ? sum + numberValue(item.amount) : sum, 0);
 }
 
+export function activeScheduleTotal(schedule: PublicBooking["paymentSchedule"]) {
+  return schedule.reduce((sum, item) => ["cancelled", "deleted"].includes(String(item.status || "").toLowerCase()) ? sum : sum + numberValue(item.amount), 0);
+}
+
+export function payableSchedules(schedule: PublicBooking["paymentSchedule"]) {
+  return schedule.filter((item) => ["pending", "unpaid", "rejected"].includes(String(item.status || "pending").toLowerCase()));
+}
+
+export function pendingVerificationSchedules(schedule: PublicBooking["paymentSchedule"]) {
+  return schedule.filter((item) => String(item.status || "").toLowerCase() === "for_verification");
+}
+
 export function currentBookingBalance(booking: PublicBooking, payments: PublicBookingPayment[]) {
-  const totalAmount = numberValue(booking.totalAmount);
+  const scheduleTotal = activeScheduleTotal(booking.paymentSchedule);
+  const totalAmount = booking.paymentSchedule.length ? scheduleTotal : numberValue(booking.totalAmount);
   const totalPaid = Math.max(paidFromSchedule(booking.paymentSchedule), paidFromPayments(payments));
   return {
     totalAmount,
     totalPaid,
     remainingBalance: Math.max(0, totalAmount - totalPaid),
+    hasOutstandingPaymentSchedules: payableSchedules(booking.paymentSchedule).length > 0,
+    hasPendingVerificationPayments: pendingVerificationSchedules(booking.paymentSchedule).length > 0 || payments.some((payment) => String(payment.status || "").toLowerCase() === "for_verification"),
   };
 }
 
@@ -84,6 +100,7 @@ export async function getPublicBooking(identifier: string) {
       const payment = paymentDoc.data() ?? {};
       return {
         id: paymentDoc.id,
+        paymentScheduleId: String(payment.paymentScheduleId || payment.scheduleItemId || ""),
         paymentName: paymentLogName(payment),
         method: String(payment.method || ""),
         referenceNumber: String(payment.referenceNumber || ""),
