@@ -147,6 +147,10 @@ function paymentLogForScheduleItem(item: PaymentScheduleItem, paymentLogs: Booki
   return paymentLogs.find((payment) => payment.paymentScheduleId === item.id) ?? null;
 }
 
+function canSendPaymentRequest(item: PaymentScheduleItem) {
+  return ["pending", "unpaid", "rejected"].includes(String(item.status || "pending").toLowerCase());
+}
+
 function bookingEditDraft(booking: AdminBooking): BookingEditDraft {
   return {
     groupContact: { ...(booking.groupContact ?? {}) },
@@ -192,6 +196,7 @@ export function BookingManagement() {
   const [documentBinLoading, setDocumentBinLoading] = useState(false);
   const [newPayment, setNewPayment] = useState({ label: "", amount: "", dueDate: "" });
   const [sendingConfirmation, setSendingConfirmation] = useState(false);
+  const [sendingPaymentRequestId, setSendingPaymentRequestId] = useState("");
   const [editing, setEditing] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [editDraft, setEditDraft] = useState<BookingEditDraft | null>(null);
@@ -437,6 +442,25 @@ export function BookingManagement() {
     setBookings((current) => current.map((booking) => booking.id === updated.id ? updated : booking));
     setNewPayment({ label: "", amount: "", dueDate: "" });
     setStatus("Payment schedule added.");
+  }
+
+  async function sendPaymentRequest(item: PaymentScheduleItem) {
+    if (!selected || sendingPaymentRequestId) return;
+    setSendingPaymentRequestId(item.id);
+    const response = await fetch(`/api/admin/bookings/${encodeURIComponent(selected.id)}/payment-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduleItemId: item.id }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setSendingPaymentRequestId("");
+
+    if (!response.ok) {
+      setStatus(data?.error ?? "Unable to send payment request email.");
+      return;
+    }
+
+    setStatus("Payment request email sent successfully.");
   }
 
   function linkDocumentBin() {
@@ -756,6 +780,20 @@ export function BookingManagement() {
                                 <p className="mt-2 text-xs font-medium text-viaje-soft">
                                   Payment log not available
                                 </p>
+                              )}
+                              {canSendPaymentRequest(item) && (
+                                <div className="mt-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => sendPaymentRequest(item)}
+                                    disabled={sendingPaymentRequestId === item.id}
+                                  >
+                                    <Mail className="h-3.5 w-3.5" />
+                                    {sendingPaymentRequestId === item.id ? "Sending..." : "Send Payment Link"}
+                                  </Button>
+                                </div>
                               )}
                             </TD>
                           </TR>
