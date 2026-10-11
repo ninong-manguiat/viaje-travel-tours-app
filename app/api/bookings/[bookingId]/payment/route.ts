@@ -43,9 +43,21 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   }
 
   const { adminDb } = await import("@/lib/firebase-admin");
-  const paymentId = `pay-${Date.now()}`;
   const transactionId = `txn-booking-${Date.now()}`;
   const amountDue = Number(scheduleItem?.amount || summary.remainingBalance);
+  let paymentId = `pay-${Date.now()}`;
+  let existingPayment: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+
+  if (scheduleItem?.id) {
+    const existingPaymentSnapshot = await adminDb.collection("payments")
+      .where("bookingId", "==", booking.id)
+      .where("paymentScheduleId", "==", scheduleItem.id)
+      .limit(1)
+      .get();
+    existingPayment = existingPaymentSnapshot.docs[0] ?? null;
+    if (existingPayment) paymentId = existingPayment.id;
+  }
+
   const payment = {
     id: paymentId,
     transactionId,
@@ -69,7 +81,10 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  await adminDb.collection("payments").doc(paymentId).set(payment);
+  await adminDb.collection("payments").doc(paymentId).set({
+    ...payment,
+    createdAt: existingPayment ? existingPayment.data().createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+  }, { merge: true });
   const paymentSchedule = scheduleItem
     ? booking.paymentSchedule.map((item) => item.id === scheduleItem.id ? { ...item, status: "for_verification" } : item)
     : booking.paymentSchedule;

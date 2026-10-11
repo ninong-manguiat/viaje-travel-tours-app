@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
     status: "PENDING FOR VERIFICATION",
     paymentStatus: "for_verification",
     totalAmount: finalAmount,
-    amountPaid: amountSubmitted,
-    balance: remainingBalance,
+    amountPaid: 0,
+    balance: finalAmount,
     source: "website",
     guests: body?.guests ?? [],
     groupContact: normalizedGroupContact,
@@ -204,31 +204,40 @@ export async function POST(request: NextRequest) {
     createdAt: FieldValue.serverTimestamp(),
   };
 
-  const payment = {
-    id: paymentId,
-    transactionId,
-    bookingId,
-    clientId: null,
-    paymentName: schedule[0]?.label ?? "",
-    paymentScheduleId: schedule[0]?.id ?? "",
-    method: body?.payment?.method ?? "",
-    paymentMethodReferenceNumber: body?.payment?.paymentMethodReferenceNumber ?? "",
-    referenceNumber: body?.payment?.referenceNumber ?? "",
-    amountExpected: amountSubmitted,
-    amountSubmitted,
-    receiptUrl: body?.payment?.receiptUrl ?? "",
-    paymentDate: body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10),
-    notes: body?.payment?.notes ?? "",
-    status: "for_verification",
-    createdAt: FieldValue.serverTimestamp(),
-  };
+  const paymentLogs = schedule.map((item, index) => {
+    const submitted = index === 0;
+    return {
+      id: submitted ? paymentId : `pay-${bookingId}-${item.id}`,
+      transactionId: submitted ? transactionId : "",
+      bookingId,
+      bookingReference: reference,
+      clientId: null,
+      source: "BOOKING",
+      paymentName: item.label,
+      paymentScheduleId: item.id,
+      method: submitted ? body?.payment?.method ?? "" : "",
+      paymentMethodReferenceNumber: submitted ? body?.payment?.paymentMethodReferenceNumber ?? "" : "",
+      referenceNumber: submitted ? body?.payment?.referenceNumber ?? "" : "",
+      amountExpected: item.amount,
+      amountSubmitted: submitted ? amountSubmitted : 0,
+      receiptUrl: submitted ? body?.payment?.receiptUrl ?? "" : "",
+      paymentDate: submitted ? body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10) : "",
+      notes: submitted ? body?.payment?.notes ?? "" : "",
+      status: submitted ? "for_verification" : "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+  });
+  const payment = paymentLogs[0];
 
   let finalRecordsCreated = false;
 
   try {
     await adminDb.collection("bookings").doc(bookingId).set(booking);
     await adminDb.collection("transactions").doc(transactionId).set(transaction);
-    await adminDb.collection("payments").doc(paymentId).set(payment);
+    await Promise.all(paymentLogs.map((paymentLog) =>
+      adminDb.collection("payments").doc(paymentLog.id).set(paymentLog)
+    ));
     finalRecordsCreated = true;
     if (draftRef) await draftRef.delete();
   } catch (error) {

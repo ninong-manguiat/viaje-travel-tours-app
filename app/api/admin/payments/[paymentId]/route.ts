@@ -56,6 +56,48 @@ function matchingScheduleId(payment: FirebaseFirestore.DocumentData, schedule: A
   return amountMatches.length === 1 ? String(amountMatches[0].id || "") : "";
 }
 
+function serializeDate(value: unknown) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object" && value && "toDate" in value && typeof value.toDate === "function") return value.toDate().toISOString();
+  return "";
+}
+
+function serializePayment(id: string, data: FirebaseFirestore.DocumentData) {
+  return {
+    id,
+    source: String(data.source || ""),
+    bookingId: String(data.bookingId || ""),
+    bookingReference: String(data.bookingReference || ""),
+    quotationId: String(data.quotationId || ""),
+    quotationReference: String(data.quotationReference || ""),
+    paymentScheduleId: String(data.paymentScheduleId || data.scheduleItemId || ""),
+    paymentName: String(data.paymentName || data.label || ""),
+    method: String(data.method || ""),
+    paymentMethodReferenceNumber: String(data.paymentMethodReferenceNumber || ""),
+    referenceNumber: String(data.referenceNumber || ""),
+    amountExpected: Number(data.amountExpected || 0),
+    amountSubmitted: Number(data.amountSubmitted || 0),
+    receiptUrl: String(data.receiptUrl || ""),
+    paymentDate: String(data.paymentDate || ""),
+    notes: String(data.notes || ""),
+    status: String(data.status || "for_verification"),
+    createdAt: serializeDate(data.createdAt),
+    updatedAt: serializeDate(data.updatedAt),
+  };
+}
+
+export async function GET(request: NextRequest, { params }: { params: { paymentId: string } }) {
+  if (!isAdmin(request)) return unauthorized();
+
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const paymentDoc = await adminDb.collection("payments").doc(params.paymentId).get();
+  if (!paymentDoc.exists) return NextResponse.json({ error: "Payment not found." }, { status: 404 });
+
+  return NextResponse.json({ payment: serializePayment(paymentDoc.id, paymentDoc.data() ?? {}) });
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { paymentId: string } }) {
   if (!isAdmin(request)) return unauthorized();
 
@@ -69,6 +111,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
   if (!paymentDoc.exists) return NextResponse.json({ error: "Payment not found." }, { status: 404 });
 
   const payment = paymentDoc.data() ?? {};
+  if (normalizedStatus(payment.status) !== "for_verification" || !String(payment.receiptUrl || "").trim()) {
+    return NextResponse.json({ error: "Only submitted payments for verification can be approved or rejected." }, { status: 400 });
+  }
+
   await paymentRef.set({ status, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
   if (payment.source === "QUOTATION" && payment.quotationId) {
@@ -118,5 +164,5 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
     metadata: { status },
   });
 
-  return NextResponse.json({ payment: { id: params.paymentId, ...payment, status } });
+  return NextResponse.json({ payment: serializePayment(params.paymentId, { ...payment, status, updatedAt: new Date().toISOString() }) });
 }

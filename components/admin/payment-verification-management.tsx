@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, ExternalLink, X, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { Route } from "next";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -17,19 +19,29 @@ type PaymentLog = {
   bookingReference?: string;
   quotationId?: string;
   quotationReference?: string;
+  paymentScheduleId?: string;
+  paymentName?: string;
   method?: string;
+  paymentMethodReferenceNumber?: string;
   referenceNumber?: string;
   amountExpected?: number;
   amountSubmitted?: number;
   receiptUrl?: string;
   paymentDate?: string;
+  notes?: string;
   status?: string;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 export function PaymentVerificationManagement({ initialPayments = [] }: { initialPayments?: PaymentLog[] }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [payments, setPayments] = useState(initialPayments);
   const [loading, setLoading] = useState(true);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentLog | null>(null);
+  const [selectedLoading, setSelectedLoading] = useState(false);
+  const [verifyingPaymentId, setVerifyingPaymentId] = useState("");
   const [currentCursor, setCurrentCursor] = useState("");
   const [cursorStack, setCursorStack] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState("");
@@ -57,19 +69,56 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
       .finally(() => setLoading(false));
   }, [currentCursor]);
 
+  useEffect(() => {
+    const paymentLogId = searchParams.get("paymentLogId");
+    if (!paymentLogId) return;
+
+    const existing = payments.find((payment) => payment.id === paymentLogId);
+    if (existing) {
+      setSelectedPayment(existing);
+      return;
+    }
+
+    setSelectedLoading(true);
+    fetch(`/api/admin/payments/${encodeURIComponent(paymentLogId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load payment log")))
+      .then((data) => setSelectedPayment(data.payment))
+      .catch(() => setMessage("Unable to load the selected payment log."))
+      .finally(() => setSelectedLoading(false));
+  }, [payments, searchParams]);
+
   async function updateStatus(payment: PaymentLog, status: "verified" | "rejected") {
+    setVerifyingPaymentId(payment.id);
     const response = await fetch(`/api/admin/payments/${payment.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
     const data = await response.json().catch(() => ({}));
+    setVerifyingPaymentId("");
     if (!response.ok) {
       setMessage(data?.error ?? "Unable to update payment.");
       return;
     }
-    setPayments((current) => current.map((item) => item.id === payment.id ? { ...item, status } : item));
+    const updatedPayment = data.payment ?? { ...payment, status };
+    setPayments((current) => current.map((item) => item.id === payment.id ? { ...item, ...updatedPayment } : item));
+    setSelectedPayment((current) => current?.id === payment.id ? { ...current, ...updatedPayment } : current);
     setMessage(status === "verified" ? "Payment verified." : "Payment rejected.");
+  }
+
+  function openPayment(payment: PaymentLog) {
+    setSelectedPayment(payment);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("paymentLogId", payment.id);
+    router.replace(`/admin/payments/verification?${params.toString()}` as Route, { scroll: false });
+  }
+
+  function closePayment() {
+    setSelectedPayment(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("paymentLogId");
+    const query = params.toString();
+    router.replace(`/admin/payments/verification${query ? `?${query}` : ""}` as Route, { scroll: false });
   }
 
   function nextPage() {
@@ -115,14 +164,14 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
               {loading && <TR><TD colSpan={7}>Loading submitted payment proofs...</TD></TR>}
               {!loading && !payments.length && <TR><TD colSpan={7}>No submitted payment proofs yet.</TD></TR>}
               {!loading && payments.map((payment) => (
-                <TR key={payment.id}>
+                <TR key={payment.id} className="cursor-pointer hover:bg-viaje-paper" onClick={() => openPayment(payment)}>
                   <TD>{payment.referenceNumber || payment.id}</TD>
                   <TD>
                     {payment.source === "QUOTATION" ? (
                       <div className="grid gap-1">
                         <span className="font-semibold text-viaje-navy">Quotation</span>
                         {payment.quotationId ? (
-                          <Link href="/admin/quotations" className="text-xs font-semibold text-viaje-red hover:underline">{payment.quotationReference}</Link>
+                          <Link href="/admin/quotations" className="text-xs font-semibold text-viaje-red hover:underline" onClick={(event) => event.stopPropagation()}>{payment.quotationReference}</Link>
                         ) : (
                           <span className="text-xs text-viaje-soft">{payment.quotationReference}</span>
                         )}
@@ -134,6 +183,7 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                           <Link
                             href={`/admin/bookings?bookingId=${encodeURIComponent(payment.bookingId)}`}
                             className="text-xs font-semibold text-viaje-red hover:underline"
+                            onClick={(event) => event.stopPropagation()}
                           >
                             {payment.bookingReference || payment.bookingId}
                           </Link>
@@ -143,25 +193,17 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                       </div>
                     )}
                   </TD>
-                  <TD className="capitalize">{payment.method || "-"}</TD>
+                  <TD className="capitalize">{payment.method || (payment.status === "pending" ? "Pending" : "-")}</TD>
                   <TD>
-                    <div className="font-medium">{formatPeso(Number(payment.amountSubmitted || 0))}</div>
+                    <div className="font-medium">{formatPeso(Number(payment.amountSubmitted || payment.amountExpected || 0))}</div>
                     <div className="text-xs text-muted-foreground">{payment.paymentDate ? formatDate(payment.paymentDate) : "-"}</div>
                   </TD>
                   <TD>{formatPeso(Number(payment.amountExpected || 0))}</TD>
                   <TD><StatusBadge status={payment.status || "for_verification"} /></TD>
                   <TD className="whitespace-nowrap">
                     <div className="flex flex-nowrap justify-end gap-2">
-                      {payment.receiptUrl && (
-                        <Button type="button" size="sm" variant="outline" onClick={() => window.open(payment.receiptUrl, "_blank", "noopener,noreferrer")}>
-                          <ExternalLink className="h-3.5 w-3.5" />Proof
-                        </Button>
-                      )}
-                      <Button type="button" size="sm" onClick={() => updateStatus(payment, "verified")} disabled={payment.status === "verified"}>
-                        <CheckCircle2 className="h-3.5 w-3.5" />Approve
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => updateStatus(payment, "rejected")} disabled={payment.status === "rejected"}>
-                        <XCircle className="h-3.5 w-3.5" />Reject
+                      <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openPayment(payment); }}>
+                        Details
                       </Button>
                     </div>
                   </TD>
@@ -182,6 +224,97 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
           />
         </CardContent>
       </Card>
+
+      {(selectedPayment || selectedLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[8px] bg-white shadow-[0_28px_80px_-30px_rgba(0,0,0,0.65)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-viaje-line bg-white px-5 py-4">
+              <div>
+                <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">Payment Details</p>
+                <h2 className="mt-1 font-serif text-2xl font-semibold text-viaje-navy">
+                  {selectedPayment?.paymentName || selectedPayment?.referenceNumber || selectedPayment?.id || "Loading payment"}
+                </h2>
+              </div>
+              <Button type="button" variant="outline" size="icon" onClick={closePayment} aria-label="Close payment details">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid gap-5 p-5">
+              {selectedLoading && !selectedPayment ? (
+                <p className="rounded-[8px] border border-viaje-line bg-viaje-paper p-4 text-sm text-viaje-soft">Loading payment details...</p>
+              ) : selectedPayment && (
+                <>
+                  <Card>
+                    <CardHeader><CardTitle>Payment Information</CardTitle></CardHeader>
+                    <CardContent className="grid gap-4 text-sm md:grid-cols-2">
+                      <p><span className="text-viaje-soft">Payment Reference</span><br /><strong className="text-viaje-navy">{selectedPayment.referenceNumber || selectedPayment.id}</strong></p>
+                      <p><span className="text-viaje-soft">Source</span><br /><strong className="text-viaje-navy">{selectedPayment.source || (selectedPayment.quotationId ? "QUOTATION" : "BOOKING")}</strong></p>
+                      <p><span className="text-viaje-soft">Booking / Quotation Reference</span><br /><strong className="text-viaje-navy">{selectedPayment.bookingReference || selectedPayment.quotationReference || selectedPayment.bookingId || selectedPayment.quotationId || "N/A"}</strong></p>
+                      <p><span className="text-viaje-soft">Payment Name</span><br /><strong className="text-viaje-navy">{selectedPayment.paymentName || "N/A"}</strong></p>
+                      <p><span className="text-viaje-soft">Payment Amount</span><br /><strong className="text-viaje-navy">{formatPeso(Number(selectedPayment.amountSubmitted || selectedPayment.amountExpected || 0))}</strong></p>
+                      <p><span className="text-viaje-soft">Expected Amount</span><br /><strong className="text-viaje-navy">{formatPeso(Number(selectedPayment.amountExpected || 0))}</strong></p>
+                      <p><span className="text-viaje-soft">Payment Method</span><br /><strong className="text-viaje-navy">{selectedPayment.method || "Pending submission"}</strong></p>
+                      <p><span className="text-viaje-soft">Transaction Date</span><br /><strong className="text-viaje-navy">{selectedPayment.paymentDate ? formatDate(selectedPayment.paymentDate) : "N/A"}</strong></p>
+                      <p><span className="text-viaje-soft">Payment Status</span><br /><StatusBadge status={selectedPayment.status || "pending"} /></p>
+                      <p><span className="text-viaje-soft">Schedule ID</span><br /><strong className="text-viaje-navy">{selectedPayment.paymentScheduleId || "N/A"}</strong></p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader><CardTitle>Payment Proof</CardTitle></CardHeader>
+                    <CardContent>
+                      {selectedPayment.receiptUrl ? (
+                        <Button type="button" variant="outline" onClick={() => window.open(selectedPayment.receiptUrl, "_blank", "noopener,noreferrer")}>
+                          <ExternalLink className="h-4 w-4" />
+                          View Proof of Payment
+                        </Button>
+                      ) : (
+                        <p className="text-sm text-viaje-soft">No proof has been submitted for this payment yet.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader><CardTitle>Verification Information</CardTitle></CardHeader>
+                    <CardContent className="grid gap-4 text-sm md:grid-cols-2">
+                      <p><span className="text-viaje-soft">Submission Date</span><br /><strong className="text-viaje-navy">{selectedPayment.createdAt ? formatDate(selectedPayment.createdAt) : "N/A"}</strong></p>
+                      <p><span className="text-viaje-soft">Verification Date</span><br /><strong className="text-viaje-navy">{selectedPayment.updatedAt && selectedPayment.status !== "for_verification" ? formatDate(selectedPayment.updatedAt) : "N/A"}</strong></p>
+                      <p><span className="text-viaje-soft">Verified By</span><br /><strong className="text-viaje-navy">N/A</strong></p>
+                      <p><span className="text-viaje-soft">Remarks / Rejection Reason</span><br /><strong className="text-viaje-navy">{selectedPayment.notes || "N/A"}</strong></p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                      {selectedPayment.status === "for_verification" && selectedPayment.receiptUrl ? (
+                        <>
+                          <Button type="button" onClick={() => updateStatus(selectedPayment, "verified")} disabled={verifyingPaymentId === selectedPayment.id}>
+                            <CheckCircle2 className="h-4 w-4" />
+                            {verifyingPaymentId === selectedPayment.id ? "Approving..." : "Approve Payment"}
+                          </Button>
+                          <Button type="button" variant="outline" onClick={() => updateStatus(selectedPayment, "rejected")} disabled={verifyingPaymentId === selectedPayment.id}>
+                            <XCircle className="h-4 w-4" />
+                            {verifyingPaymentId === selectedPayment.id ? "Rejecting..." : "Reject Payment"}
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="text-sm text-viaje-soft">
+                          {selectedPayment.status === "pending"
+                            ? "This scheduled payment has not been submitted yet."
+                            : "No verification action is available for this payment status."}
+                        </p>
+                      )}
+                      <Button type="button" variant="outline" onClick={closePayment}>Close</Button>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

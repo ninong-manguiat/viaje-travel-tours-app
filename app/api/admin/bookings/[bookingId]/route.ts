@@ -218,8 +218,30 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const adjustedSchedule = overage > 0
       ? schedule.map((item) => item.id === "remaining-balance" ? { ...item, amount: Number(item.amount || 0) - overage } : item)
       : schedule;
-    const paymentSchedule = [...adjustedSchedule, { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" }];
+    const scheduleItem = { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" };
+    const paymentSchedule = [...adjustedSchedule, scheduleItem];
     const amountPaid = paidFromSchedule(paymentSchedule);
+    const paymentLog = {
+      id: `pay-${params.bookingId}-${scheduleItem.id}`,
+      transactionId: "",
+      bookingId: params.bookingId,
+      bookingReference: String(booking.reference || params.bookingId),
+      clientId: null,
+      source: "BOOKING",
+      paymentName: scheduleItem.label,
+      paymentScheduleId: scheduleItem.id,
+      method: "",
+      paymentMethodReferenceNumber: "",
+      referenceNumber: "",
+      amountExpected: scheduleItem.amount,
+      amountSubmitted: 0,
+      receiptUrl: "",
+      paymentDate: "",
+      notes: "",
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
     await ref.set({
       paymentSchedule,
       paymentStatus: derivedPaymentStatus(paymentSchedule),
@@ -227,7 +249,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
       balance: Math.max(0, totalAmount - amountPaid),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-    return NextResponse.json({ paymentSchedule });
+    await adminDb.collection("payments").doc(paymentLog.id).set(paymentLog, { merge: true });
+    return NextResponse.json({ paymentSchedule, paymentLog: { ...paymentLog, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
   }
 
   if (action === "updateContactGuests") {

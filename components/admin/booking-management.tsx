@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, ExternalLink, FileDown, FileText, Link as LinkIcon, Mail, Plus, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, FileDown, FileText, Mail, Plus, Trash2, X } from "lucide-react";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
@@ -90,13 +90,6 @@ type BookingEditDraft = {
   guests: Array<Record<string, unknown>>;
 };
 
-const paymentStatusOptions = [
-  { value: "pending", label: "PENDING" },
-  { value: "for_verification", label: "FOR VERIFICATION" },
-  { value: "verified", label: "VERIFIED" },
-  { value: "rejected", label: "REJECTED" },
-];
-
 const bookingStatusOptions = ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"];
 const contactEditableFields = [
   ["firstName", "First Name"],
@@ -150,28 +143,8 @@ function paidFromSchedule(schedule: PaymentScheduleItem[]) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(item.status.toLowerCase()) ? sum + Number(item.amount || 0) : sum, 0);
 }
 
-function paymentProofForScheduleItem(item: PaymentScheduleItem, paymentLogs: BookingPaymentLog[] = []) {
-  if (item.status.toLowerCase() !== "for_verification") return null;
-
-  const candidates = paymentLogs.filter((payment) =>
-    payment.receiptUrl &&
-    String(payment.status || "").toLowerCase() === "for_verification"
-  );
-  const exactById = candidates.find((payment) => payment.paymentScheduleId === item.id);
-  if (exactById) return exactById;
-
-  const exactByName = candidates.find((payment) =>
-    payment.paymentName?.trim().toLowerCase() === item.label.trim().toLowerCase()
-  );
-  if (exactByName) return exactByName;
-
-  const amountMatches = candidates.filter((payment) =>
-    Number(payment.amountExpected || payment.amountSubmitted || 0) === Number(item.amount || 0)
-  );
-  if (["downpayment", "full-payment"].includes(item.id) && amountMatches.length) return amountMatches[0];
-  if (amountMatches.length === 1) return amountMatches[0];
-
-  return null;
+function paymentLogForScheduleItem(item: PaymentScheduleItem, paymentLogs: BookingPaymentLog[] = []) {
+  return paymentLogs.find((payment) => payment.paymentScheduleId === item.id) ?? null;
 }
 
 function bookingEditDraft(booking: AdminBooking): BookingEditDraft {
@@ -418,27 +391,6 @@ export function BookingManagement() {
     setStatus("Booking details updated successfully.");
   }
 
-  async function updateScheduleStatus(scheduleItemId: string, nextStatus: string) {
-    if (!selected) return;
-
-    const response = await fetch(`/api/admin/bookings/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "updateScheduleStatus", scheduleItemId, status: nextStatus }),
-    });
-
-    if (!response.ok) {
-      setStatus("Unable to update payment status.");
-      return;
-    }
-
-    const data = await response.json();
-    const updated = { ...selected, paymentSchedule: data.paymentSchedule, paymentStatus: data.paymentStatus, status: data.status };
-    setSelected(updated);
-    setBookings((current) => current.map((booking) => booking.id === updated.id ? updated : booking));
-    setStatus("Payment status updated.");
-  }
-
   async function updateBookingStatus(nextStatus: string) {
     if (!selected) return;
 
@@ -476,7 +428,11 @@ export function BookingManagement() {
     }
 
     const data = await response.json();
-    const updated = { ...selected, paymentSchedule: data.paymentSchedule };
+    const updated = {
+      ...selected,
+      paymentSchedule: data.paymentSchedule,
+      paymentLogs: data.paymentLog ? [...(selected.paymentLogs ?? []), data.paymentLog] : selected.paymentLogs,
+    };
     setSelected(updated);
     setBookings((current) => current.map((booking) => booking.id === updated.id ? updated : booking));
     setNewPayment({ label: "", amount: "", dueDate: "" });
@@ -771,8 +727,7 @@ export function BookingManagement() {
 
                     <TBody>
                       {selectedSchedule.map((item) => {
-                        const proofPayment = paymentProofForScheduleItem(item, selected.paymentLogs);
-                        const isForVerification = item.status.toLowerCase() === "for_verification";
+                        const paymentLog = paymentLogForScheduleItem(item, selected.paymentLogs);
 
                         return (
                           <TR key={item.id}>
@@ -785,45 +740,22 @@ export function BookingManagement() {
                             <TD>{dateLabel(item.dueDate)}</TD>
 
                             <TD>
-                              <select
-                                value={item.status}
-                                onChange={(event) =>
-                                  updateScheduleStatus(
-                                    item.id,
-                                    event.target.value
-                                  )
-                                }
-                                className="h-10 rounded-[8px] border border-viaje-line bg-white px-3 text-sm text-viaje-ink"
-                              >
-                                {paymentStatusOptions.map((option) => (
-                                  <option
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
+                              <StatusBadge status={item.status || "pending"} />
 
-                              {isForVerification ? (
-                                proofPayment?.receiptUrl ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="mt-2"
-                                    onClick={() => window.open(proofPayment.receiptUrl, "_blank", "noopener,noreferrer")}
-                                  >
+                              {paymentLog ? (
+                                <a
+                                  href={`/admin/payments/verification?paymentLogId=${encodeURIComponent(paymentLog.id)}`}
+                                  className="mt-2 inline-flex"
+                                >
+                                  <Button type="button" size="sm" variant="outline">
                                     <ExternalLink className="h-3.5 w-3.5" />
-                                    View Proof of Payment
+                                    View Payment Log
                                   </Button>
-                                ) : (
-                                  <p className="mt-2 text-xs font-medium text-viaje-soft">Proof not available</p>
-                                )
-                              ) : !["verified", "paid"].includes(
-                                item.status.toLowerCase()
-                              ) && (
-                                <></>
+                                </a>
+                              ) : (
+                                <p className="mt-2 text-xs font-medium text-viaje-soft">
+                                  Payment log not available
+                                </p>
                               )}
                             </TD>
                           </TR>

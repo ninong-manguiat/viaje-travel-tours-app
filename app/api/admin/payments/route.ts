@@ -25,6 +25,8 @@ function serializePayment(id: string, data: FirebaseFirestore.DocumentData) {
     bookingReference: String(data.bookingReference || ""),
     quotationId: String(data.quotationId || ""),
     quotationReference: String(data.quotationReference || ""),
+    paymentScheduleId: String(data.paymentScheduleId || data.scheduleItemId || ""),
+    paymentName: String(data.paymentName || data.label || ""),
     method: String(data.method || ""),
     referenceNumber: String(data.referenceNumber || ""),
     amountExpected: Number(data.amountExpected || 0),
