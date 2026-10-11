@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, ExternalLink, Eye, FileText, Plus, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, Eye, FileText, Mail, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
@@ -221,6 +221,7 @@ export function DocumentBinManagement() {
   const [createTouched, setCreateTouched] = useState<CreateTouched>({});
   const [createSubmitted, setCreateSubmitted] = useState(false);
   const [addRequirementSubmitted, setAddRequirementSubmitted] = useState(false);
+  const [sendingDocumentRequestId, setSendingDocumentRequestId] = useState("");
   const searchMounted = useRef(false);
 
   useEffect(() => {
@@ -424,6 +425,21 @@ export function DocumentBinManagement() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  async function sendDocumentRequest(bin: DocumentBin) {
+    if (sendingDocumentRequestId) return;
+    setSendingDocumentRequestId(bin.id);
+    const response = await fetch(`/api/admin/document-bins/${encodeURIComponent(bin.id)}/send-email`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    setSendingDocumentRequestId("");
+
+    if (!response.ok) {
+      setStatus(data?.error ?? "Unable to send document request email.");
+      return;
+    }
+
+    setStatus("Document request email sent successfully.");
+  }
+
   async function addRequirement() {
     if (!selected || !newRequirements[0]) return;
     setAddRequirementSubmitted(true);
@@ -619,6 +635,9 @@ export function DocumentBinManagement() {
                       <>
                         <Button type="button" size="sm" variant="outline" onClick={() => copyLink(selected)}><Copy className="h-3.5 w-3.5" />Copy Bin Link</Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => openLink(selected)}><ExternalLink className="h-3.5 w-3.5" />Open Bin Link</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => sendDocumentRequest(selected)} disabled={sendingDocumentRequestId === selected.id}>
+                          <Mail className="h-3.5 w-3.5" />{sendingDocumentRequestId === selected.id ? "Sending..." : "Send Email"}
+                        </Button>
                       </>
                     )}
                     {selected.status === "CANCELLED" ? (
