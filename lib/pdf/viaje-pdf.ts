@@ -6,6 +6,7 @@ import { getPackageById } from "@/lib/package-data";
 import { normalizePaymentMethod } from "@/lib/payment-methods";
 import { getQuotationWithItems, quotationItemDetail, type Quotation } from "@/lib/quotations";
 import { defaultWebsiteContent, mergeWebsiteContent } from "@/lib/website-content";
+import { publicAppBaseUrl } from "@/lib/public-url";
 import { formatDate } from "@/lib/utils";
 
 type FirestoreData = FirebaseFirestore.DocumentData;
@@ -90,18 +91,21 @@ function downloadResponse(buffer: Buffer, filename: string) {
 }
 
 async function footerLines() {
+  const websiteUrl = publicAppBaseUrl();
+  const websiteLabel = websiteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
   try {
     const { adminDb } = await import("@/lib/firebase-admin");
     const snapshot = await adminDb.collection("websiteContent").doc("homepage").get();
     const content = snapshot.exists ? mergeWebsiteContent(snapshot.data()) : defaultWebsiteContent;
     return [
       content.aboutUs.direction,
-      [content.aboutUs.contactNumber, content.aboutUs.landlineNumber, content.aboutUs.facebook].filter(Boolean).join(" | "),
+      [content.aboutUs.contactNumber, content.aboutUs.landlineNumber, websiteLabel || "Website", content.aboutUs.facebook ? "Facebook Page" : ""].filter(Boolean).join(" | "),
     ].filter(Boolean);
   } catch {
     return [
       defaultWebsiteContent.aboutUs.direction,
-      [defaultWebsiteContent.aboutUs.contactNumber, defaultWebsiteContent.aboutUs.landlineNumber, defaultWebsiteContent.aboutUs.facebook].filter(Boolean).join(" | "),
+      [defaultWebsiteContent.aboutUs.contactNumber, defaultWebsiteContent.aboutUs.landlineNumber, websiteLabel || "Website", defaultWebsiteContent.aboutUs.facebook ? "Facebook Page" : ""].filter(Boolean).join(" | "),
     ];
   }
 }

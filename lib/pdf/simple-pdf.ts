@@ -19,6 +19,7 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 42;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const FOOTER_SPACE = 76;
 
 function escapePdfText(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
@@ -182,6 +183,15 @@ export class SimplePdf {
     this.page.ops.push(`BT /${this.font(font)} ${size} Tf ${this.color(color)} ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(safeText(text))}) Tj ET`);
   }
 
+  private centeredTextAt(text: string, yFromTop: number, size: number, font: FontName, color = "#0f2438") {
+    const clean = safeText(text);
+    const width = textWidth(clean, size);
+    const centeredX = (PAGE_WIDTH - width) / 2;
+    const maxX = PAGE_WIDTH - MARGIN - width;
+    const x = Math.max(MARGIN, Math.min(centeredX, maxX));
+    this.textAt(clean, x, yFromTop, size, font, color);
+  }
+
   private imageAt(width: number, height: number, x: number, yFromTop: number) {
     if (!this.logo) return;
     const y = PAGE_HEIGHT - yFromTop - height;
@@ -193,8 +203,7 @@ export class SimplePdf {
   }
 
   private ensure(height: number) {
-    const footerSpace = 58;
-    if (this.y + height <= PAGE_HEIGHT - MARGIN - footerSpace) return;
+    if (this.y + height <= PAGE_HEIGHT - MARGIN - FOOTER_SPACE) return;
     this.footer(this.pages.length);
     this.addPage();
     this.header("");
@@ -209,11 +218,12 @@ export class SimplePdf {
   }
 
   private footer(pageNumber: number) {
-    const top = PAGE_HEIGHT - MARGIN - 38;
+    const top = PAGE_HEIGHT - MARGIN - FOOTER_SPACE + 16;
     this.line(MARGIN, top, PAGE_WIDTH - MARGIN, top, "#d8dee8", 0.8);
-    const footer = this.footerLines.join(" | ");
-    if (footer) this.textAt(footer, MARGIN, top + 17, 7.5, "regular", "#64748b");
-    this.textAt(`Page ${pageNumber}`, PAGE_WIDTH - MARGIN - 36, top + 17, 7.5, "regular", "#64748b");
+    this.footerLines.slice(0, 2).forEach((line, index) => {
+      this.centeredTextAt(line, top + 15 + index * 13, 7.5, "regular", "#64748b");
+    });
+    this.textAt(`Page ${pageNumber}`, PAGE_WIDTH - MARGIN - 36, top + 43, 7.5, "regular", "#64748b");
   }
 
   section(title: string) {
