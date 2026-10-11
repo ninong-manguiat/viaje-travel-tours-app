@@ -69,6 +69,12 @@ export type GuestCheckoutDraft = {
 
 type ValidationErrors = Record<string, string>;
 
+type SubmissionSuccess = {
+  reference: string;
+  bookingUrl: string;
+  emailSent: boolean;
+};
+
 function upper(value: string) {
   return value.toUpperCase();
 }
@@ -268,7 +274,7 @@ export function GuestCheckoutClient({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [submitting, setSubmitting] = useState(false);
-  const [submittedReference, setSubmittedReference] = useState("");
+  const [submissionSuccess, setSubmissionSuccess] = useState<SubmissionSuccess | null>(null);
   const selectedPaymentMethod = paymentMethods.find((item) => item.id === paymentMethodId) ?? paymentMethods[0] ?? null;
   const effectivePaymentOption = paymentOption;
   const { dueNow, remainingBalance } = paymentAmounts(finalAmount, effectivePaymentOption);
@@ -389,7 +395,11 @@ export function GuestCheckoutClient({
     if (!response.ok) return;
     const data = await response.json();
     setDraftStatus("completed");
-    setSubmittedReference(data.booking.reference);
+    setSubmissionSuccess({
+      reference: String(data.booking?.reference || ""),
+      bookingUrl: String(data.bookingUrl || ""),
+      emailSent: Boolean(data.email?.sent),
+    });
   }
 
   async function copyPaymentReference(referenceNumber: string) {
@@ -401,7 +411,7 @@ export function GuestCheckoutClient({
     }
   }
 
-  if (draftStatus === "completed" && !submittedReference) {
+  if (draftStatus === "completed" && !submissionSuccess) {
     return (
       <main className="container-page max-w-4xl py-10">
         <Card>
@@ -415,15 +425,28 @@ export function GuestCheckoutClient({
     );
   }
 
-  if (submittedReference) {
+  if (submissionSuccess) {
     return (
       <main className="container-page max-w-4xl py-10">
         <Card>
           <CardContent className="p-8">
             <StatusBadge status="for_verification" />
             <h1 className="mt-4 text-3xl font-bold text-viaje-navy">Booking submitted for payment verification</h1>
-            <p className="mt-3 text-viaje-soft">Reference: <strong className="text-viaje-navy">{submittedReference}</strong></p>
+            <p className="mt-3 text-viaje-soft">Reference: <strong className="text-viaje-navy">{submissionSuccess.reference}</strong></p>
             <p className="mt-3 text-viaje-soft">Our staff will review your payment within 24 hours and send an update to the provided email address.</p>
+            <div className="mt-6 rounded-[10px] border border-viaje-line bg-viaje-paper p-5">
+              <h2 className="font-serif text-xl font-semibold text-viaje-navy">Booking Confirmation Email</h2>
+              <p className="mt-2 text-sm leading-6 text-viaje-soft">
+                {submissionSuccess.emailSent
+                  ? "We've sent a booking confirmation email to your registered email address. Please check your inbox for your booking details and payment verification information."
+                  : "Your booking has been submitted successfully. You can view your booking details using the button below."}
+              </p>
+              {submissionSuccess.bookingUrl && (
+                <a href={submissionSuccess.bookingUrl} className="mt-4 inline-flex">
+                  <Button type="button">View My Booking</Button>
+                </a>
+              )}
+            </div>
           </CardContent>
         </Card>
       </main>

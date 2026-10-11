@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
     ? await adminDb.collection("paymentMethods").doc(String(booking.paymentInfo.method)).get().catch(() => null)
     : null;
   const paymentMethodName = String(paymentMethodDoc?.data()?.bank || booking.paymentInfo.method || "To be verified");
+  const bookingUrl = publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request);
   const emailResult = await sendBookingReceivedEmail({
     firstName: String(booking.groupContact.firstName || "there"),
     bookingReference: reference,
@@ -277,7 +278,7 @@ export async function POST(request: NextRequest) {
     remainingBalance: formatPeso(remainingBalance),
     paymentMethod: paymentMethodName,
     itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
-    bookingUrl: publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request),
+    bookingUrl,
   }, {
     recipient: String(booking.groupContact.emailAddress || ""),
     subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,
@@ -288,6 +289,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     booking: { ...booking, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    bookingUrl,
     transaction,
     payment,
     email: emailResult.ok ? { attempted: true, sent: true } : { attempted: true, sent: false },
