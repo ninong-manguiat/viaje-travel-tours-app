@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ExternalLink, X, XCircle } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, X, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Route } from "next";
 import { StatusBadge } from "@/components/domain/status-badge";
@@ -33,6 +33,10 @@ type PaymentLog = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+function isReceiptDownloadable(status?: string) {
+  return ["verified", "paid", "approved"].includes(String(status || "").toLowerCase());
+}
 
 export function PaymentVerificationManagement({ initialPayments = [] }: { initialPayments?: PaymentLog[] }) {
   const router = useRouter();
@@ -328,6 +332,16 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                         </p>
                       )}
                       <Button type="button" variant="outline" onClick={closePayment}>Close</Button>
+                      {isReceiptDownloadable(selectedPayment.status) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => window.open(`/api/admin/payments/${encodeURIComponent(selectedPayment.id)}/acknowledgement-receipt-pdf`, "_blank", "noopener,noreferrer")}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Acknowledgement Receipt
+                        </Button>
+                      )}
                       {selectedPayment.status === "pending" && !selectedPayment.receiptUrl && Number(selectedPayment.amountSubmitted || 0) <= 0 && (
                         <Button type="button" variant="outline" className="text-viaje-red" onClick={() => deletePayment(selectedPayment)} disabled={deletingPaymentId === selectedPayment.id}>
                           {deletingPaymentId === selectedPayment.id ? "Deleting..." : "Delete Payment Log"}

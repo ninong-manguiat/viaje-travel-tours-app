@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { logActivity } from "@/lib/activity-log";
+import { sendPaymentSubmissionEmail } from "@/lib/payment-submission-email";
 import { getQuotationByToken } from "@/lib/quotations";
 
 export async function POST(request: NextRequest, { params }: { params: { token: string } }) {
@@ -80,5 +81,35 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
     metadata: { quotationId: quotation.id, amountSubmitted: quotation.totalAmount },
   });
 
-  return NextResponse.json({ payment });
+  const emailResult = await sendPaymentSubmissionEmail({
+    request,
+    recipient: quotation.email,
+    firstName: quotation.clientName.split(/\s+/)[0] || quotation.clientName,
+    reference: quotation.referenceNumber,
+    publicPath: `/quotation/${quotation.publicToken}`,
+    relatedEntityId: paymentId,
+    payment: {
+      id: paymentId,
+      paymentName: "Quotation Payment",
+      method: paymentMethodBank,
+      amountExpected: quotation.totalAmount,
+      amountSubmitted: quotation.totalAmount,
+      paymentDate: payment.paymentDate,
+    },
+    totalAmount: quotation.totalAmount,
+    totalPaid: 0,
+    remainingBalance: quotation.totalAmount,
+    metadata: {
+      quotationId: quotation.id,
+      transactionId,
+    },
+  });
+
+  await paymentRef.set({
+    submissionEmailAttemptedAt: FieldValue.serverTimestamp(),
+    submissionEmailSentAt: emailResult.sent ? FieldValue.serverTimestamp() : null,
+    submissionEmailLogId: emailResult.logId || "",
+  }, { merge: true }).catch(() => null);
+
+  return NextResponse.json({ payment, email: emailResult });
 }

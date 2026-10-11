@@ -15,6 +15,11 @@ const FACEBOOK_LABEL = "https://www.facebook.com/viajewithus/";
 
 type PaymentLog = {
   id: string;
+  source: string;
+  bookingId: string;
+  bookingReference: string;
+  quotationId: string;
+  quotationReference: string;
   paymentScheduleId: string;
   paymentName: string;
   method: string;
@@ -27,6 +32,7 @@ type PaymentLog = {
   paymentDate: string;
   status: string;
   createdAt: string;
+  updatedAt: string;
 };
 
 function timestampValue(value: unknown) {
@@ -140,6 +146,11 @@ async function createDocument(title: string) {
 function serializePaymentLog(id: string, data: FirestoreData): PaymentLog {
   return {
     id,
+    source: String(data.source || ""),
+    bookingId: String(data.bookingId || ""),
+    bookingReference: String(data.bookingReference || ""),
+    quotationId: String(data.quotationId || ""),
+    quotationReference: String(data.quotationReference || ""),
     paymentScheduleId: String(data.paymentScheduleId || data.scheduleItemId || ""),
     paymentName: String(data.paymentName || data.label || ""),
     method: String(data.method || ""),
@@ -152,6 +163,7 @@ function serializePaymentLog(id: string, data: FirestoreData): PaymentLog {
     paymentDate: String(data.paymentDate || ""),
     status: String(data.status || ""),
     createdAt: timestampValue(data.createdAt),
+    updatedAt: timestampValue(data.updatedAt),
   };
 }
 
@@ -186,6 +198,11 @@ function paymentForReceipt(booking: FirestoreData, payments: PaymentLog[]) {
   if (amount > 0) {
     return {
       id: "initial-payment",
+      source: "BOOKING",
+      bookingId: "",
+      bookingReference: String(booking.reference || ""),
+      quotationId: "",
+      quotationReference: "",
       paymentScheduleId: "",
       paymentName: String(booking.paymentType || "Initial Payment"),
       method: String(booking.paymentInfo?.method || ""),
@@ -198,6 +215,7 @@ function paymentForReceipt(booking: FirestoreData, payments: PaymentLog[]) {
       paymentDate: String(booking.paymentInfo?.paymentDate || ""),
       status: String(booking.paymentStatus || ""),
       createdAt: timestampValue(booking.createdAt),
+      updatedAt: timestampValue(booking.updatedAt),
     };
   }
 
@@ -414,6 +432,74 @@ export async function acknowledgementReceiptPdfResponse(bookingId: string) {
 
   pdf.signatureBlock();
   return downloadResponse(pdf.toBuffer(), `Acknowledgement-Receipt-${String(booking.reference || bookingId)}.pdf`);
+}
+
+export async function paymentAcknowledgementReceiptPdfResponse(paymentId: string) {
+  const { adminDb } = await import("@/lib/firebase-admin");
+  const paymentDoc = await adminDb.collection("payments").doc(paymentId).get();
+  if (!paymentDoc.exists) return null;
+
+  const payment = serializePaymentLog(paymentDoc.id, paymentDoc.data() ?? {});
+  if (!["verified", "paid", "approved"].includes(payment.status.toLowerCase())) return "not_verified" as const;
+
+  let sourceReference = payment.bookingReference || payment.quotationReference || "N/A";
+  let customerName = "N/A";
+  let customerEmail = "N/A";
+  let customerContact = "N/A";
+  let sourceLabel = "Booking / Quotation Reference";
+
+  if (payment.bookingId) {
+    const bookingDoc = await adminDb.collection("bookings").doc(payment.bookingId).get();
+    const booking = bookingDoc.exists ? bookingDoc.data() ?? {} : {};
+    sourceReference = String(booking.reference || payment.bookingReference || payment.bookingId);
+    customerName = fullName(booking.groupContact);
+    customerEmail = String(booking.groupContact?.emailAddress || "N/A");
+    customerContact = String(booking.groupContact?.mobileNumber || "N/A");
+    sourceLabel = "Booking Reference";
+  } else if (payment.quotationId) {
+    const quotation = await getQuotationWithItems(payment.quotationId);
+    if (quotation) {
+      sourceReference = quotation.referenceNumber || payment.quotationReference || payment.quotationId;
+      customerName = quotation.clientName || "N/A";
+      customerEmail = quotation.email || "N/A";
+      customerContact = quotation.contactNumber || "N/A";
+      sourceLabel = "Quotation Reference";
+    }
+  }
+
+  const method = await paymentMethodDetails(payment);
+  const amountReceived = numberValue(payment.amountSubmitted || payment.amountExpected);
+  const pdf = await createDocument("Acknowledgement Receipt");
+
+  pdf.section("Receipt Information");
+  pdf.keyValues([
+    ["Receipt Reference", payment.referenceNumber || payment.id],
+    [sourceLabel, sourceReference],
+    ["Received From", customerName],
+    ["Email", customerEmail],
+    ["Contact Number", customerContact],
+    ["Payment For", payment.paymentName || "Payment"],
+    ["Payment Status", paymentStatusLabel(payment.status)],
+    ["Date Submitted", safeDate(payment.paymentDate || payment.createdAt)],
+    ["Date Verified", safeDate(payment.updatedAt)],
+  ], 2);
+
+  pdf.section("Payment Received");
+  pdf.keyValues([
+    ["Payment Amount", formatPdfPeso(amountReceived)],
+    ["Payment Method", method?.bank || payment.method || "N/A"],
+    ["Account Name", method?.accountName || "N/A"],
+    ["Account Number", method?.referenceNumber || payment.paymentMethodReferenceNumber || "N/A"],
+    ["Transaction Reference", payment.referenceNumber || "N/A"],
+  ], 2);
+
+  if (payment.receiptUrl) {
+    pdf.section("Proof Information");
+    pdf.paragraph(`Proof of payment file: ${payment.receiptUrl}`, 8.5);
+  }
+
+  pdf.signatureBlock();
+  return downloadResponse(pdf.toBuffer(), `Acknowledgement-Receipt-${payment.referenceNumber || payment.id}.pdf`);
 }
 
 export type { Quotation };

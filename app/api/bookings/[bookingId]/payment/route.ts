@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { logActivity } from "@/lib/activity-log";
+import { sendPaymentSubmissionEmail } from "@/lib/payment-submission-email";
 import { currentBookingBalance, getPublicBooking } from "@/lib/public-bookings";
 
 function normalizedStatus(value: unknown) {
@@ -116,5 +117,36 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     metadata: { bookingId: booking.id, paymentScheduleIds: Array.from(selectedIdSet).join(","), amountSubmitted: amountDue },
   });
 
-  return NextResponse.json({ payments: submittedPayments, amountSubmitted: amountDue });
+  const emailResult = await sendPaymentSubmissionEmail({
+    request,
+    recipient: String(contact.emailAddress || ""),
+    firstName: String(contact.firstName || ""),
+    reference: booking.reference,
+    publicPath: `/dashboard/bookings/${encodeURIComponent(booking.reference)}`,
+    relatedEntityId: submittedPayments[0]?.id || transactionId,
+    payment: {
+      id: submittedPayments[0]?.id || transactionId,
+      paymentName: selectedSchedule.map((item) => item.label || item.id).filter(Boolean).join(", ") || "Payment submitted for verification",
+      method: paymentMethodBank,
+      amountExpected: amountDue,
+      amountSubmitted: amountDue,
+      paymentDate: submittedPayments[0]?.paymentDate,
+    },
+    totalAmount: summary.totalAmount,
+    totalPaid: summary.totalPaid,
+    remainingBalance: summary.remainingBalance,
+    metadata: {
+      bookingId: booking.id,
+      paymentScheduleIds: Array.from(selectedIdSet).join(","),
+      transactionId,
+    },
+  });
+
+  await Promise.all(submittedPayments.map((payment) => adminDb.collection("payments").doc(payment.id).set({
+    submissionEmailAttemptedAt: FieldValue.serverTimestamp(),
+    submissionEmailSentAt: emailResult.sent ? FieldValue.serverTimestamp() : null,
+    submissionEmailLogId: emailResult.logId || "",
+  }, { merge: true }))).catch(() => null);
+
+  return NextResponse.json({ payments: submittedPayments, amountSubmitted: amountDue, email: emailResult });
 }
