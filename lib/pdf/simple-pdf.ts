@@ -155,6 +155,18 @@ function readPng(path: string): PdfImage | null {
 }
 
 export type PdfRow = Array<string | number>;
+type PdfTableOptions = {
+  headerLine?: boolean;
+  rowLines?: boolean;
+  rowSpacing?: number;
+};
+
+function wrapCellText(value: string, width: number, size: number) {
+  const normalized = String(value ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, "");
+  return normalized
+    .split(/\r?\n/)
+    .flatMap((line) => wrapText(line, width, size));
+}
 
 export class SimplePdf {
   readonly width = PAGE_WIDTH;
@@ -331,11 +343,14 @@ export class SimplePdf {
     this.y += lines.length * (size + 3) + 3;
   }
 
-  table(headers: string[], rows: PdfRow[], widths: number[]) {
+  table(headers: string[], rows: PdfRow[], widths: number[], options: PdfTableOptions = {}) {
     const total = widths.reduce((sum, width) => sum + width, 0);
     const scaled = widths.map((width) => (width / total) * CONTENT_WIDTH);
     const padding = 5;
     const rowGap = 12;
+    const headerLine = options.headerLine ?? true;
+    const rowLines = options.rowLines ?? true;
+    const rowSpacing = options.rowSpacing ?? 0;
 
     this.ensure(28);
     let x = MARGIN;
@@ -344,13 +359,13 @@ export class SimplePdf {
       x += scaled[index];
     });
     this.y += 14;
-    this.line(MARGIN, this.y, PAGE_WIDTH - MARGIN, this.y);
+    if (headerLine) this.line(MARGIN, this.y, PAGE_WIDTH - MARGIN, this.y);
     this.y += 8;
 
     rows.forEach((row) => {
-      const cells = row.map((cell, index) => wrapText(String(cell || ""), scaled[index] - padding * 2, 8.5));
+      const cells = row.map((cell, index) => wrapCellText(String(cell || ""), scaled[index] - padding * 2, 8.5));
       const rowHeight = Math.max(...cells.map((cell) => cell.length)) * rowGap + 8;
-      this.ensure(rowHeight + 4);
+      this.ensure(rowHeight + rowSpacing + 4);
       x = MARGIN;
       cells.forEach((cell, index) => {
         cell.forEach((line, lineIndex) => {
@@ -359,7 +374,8 @@ export class SimplePdf {
         x += scaled[index];
       });
       this.y += rowHeight;
-      this.line(MARGIN, this.y - 4, PAGE_WIDTH - MARGIN, this.y - 4, "#edf0f5", 0.6);
+      if (rowLines) this.line(MARGIN, this.y - 4, PAGE_WIDTH - MARGIN, this.y - 4, "#edf0f5", 0.6);
+      this.y += rowSpacing;
     });
 
     this.y += 8;

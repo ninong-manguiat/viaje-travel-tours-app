@@ -68,8 +68,8 @@ function formatPdfPeso(value: number) {
 function quotationDetailText(item: Quotation["items"][number]) {
   const detail = quotationItemDetail(item);
   return [
-    detail ? `${detail.label}: ${detail.value}` : "",
-    item.remarks ? `Remarks: ${item.remarks}` : "",
+    detail ? `${pdfText(detail.label)}: ${pdfText(detail.value)}` : "",
+    item.remarks ? `Remarks: ${pdfText(item.remarks)}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -238,7 +238,7 @@ export async function quotationPdfResponse(quotationId: string) {
     quotationDetailText(item),
     formatPdfPeso(item.amount),
   ]);
-  pdf.table(["Service", "Additional Detail / Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9]);
+  pdf.table(["Service", "Additional Detail / Remarks", "Amount"], detailRows, [1.2, 2.5, 0.9], { headerLine: false, rowLines: false, rowSpacing: 7 });
   pdf.keyValues([["Total Amount", formatPdfPeso(quotation.totalAmount)]], 1);
   if (quotation.inclusions) {
     pdf.section("Inclusions");
