@@ -14,6 +14,7 @@ type PaymentLog = {
   id: string;
   source?: string;
   bookingId?: string;
+  bookingReference?: string;
   quotationId?: string;
   quotationReference?: string;
   method?: string;
@@ -129,7 +130,16 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                     ) : (
                       <div className="grid gap-1">
                         <span className="font-semibold text-viaje-navy">Booking</span>
-                        <span className="text-xs text-viaje-soft">{payment.bookingId || "-"}</span>
+                        {payment.bookingId ? (
+                          <Link
+                            href={`/admin/bookings?bookingId=${encodeURIComponent(payment.bookingId)}`}
+                            className="text-xs font-semibold text-viaje-red hover:underline"
+                          >
+                            {payment.bookingReference || payment.bookingId}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-viaje-soft">{payment.bookingReference || "-"}</span>
+                        )}
                       </div>
                     )}
                   </TD>

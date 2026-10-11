@@ -39,6 +39,15 @@ function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ i
   return currentStatus === "CONFIRMED" ? "CONFIRMED" : "PENDING FOR VERIFICATION";
 }
 
+function numberValue(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function paidFromSchedule(schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.reduce((sum, item) => ["verified", "paid"].includes(normalizedStatus(item.status)) ? sum + numberValue(item.amount) : sum, 0);
+}
+
 function documentToken() {
   return randomBytes(16).toString("base64url");
 }
@@ -163,8 +172,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const paymentSchedule = schedule.map((item) => item.id === scheduleItemId ? { ...item, status } : item);
     const paymentStatus = derivedPaymentStatus(paymentSchedule);
     const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
+    const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
+    const amountPaid = paidFromSchedule(paymentSchedule);
 
-    await ref.set({ paymentSchedule, paymentStatus, status: bookingStatus, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set({
+      paymentSchedule,
+      paymentStatus,
+      status: bookingStatus,
+      amountPaid,
+      balance: Math.max(0, totalAmount - amountPaid),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
     await logActivity({
       type: "booking.payment_schedule_updated",
       module: "bookings",
@@ -201,7 +219,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
       ? schedule.map((item) => item.id === "remaining-balance" ? { ...item, amount: Number(item.amount || 0) - overage } : item)
       : schedule;
     const paymentSchedule = [...adjustedSchedule, { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" }];
-    await ref.set({ paymentSchedule, paymentStatus: derivedPaymentStatus(paymentSchedule), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const amountPaid = paidFromSchedule(paymentSchedule);
+    await ref.set({
+      paymentSchedule,
+      paymentStatus: derivedPaymentStatus(paymentSchedule),
+      amountPaid,
+      balance: Math.max(0, totalAmount - amountPaid),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
     return NextResponse.json({ paymentSchedule });
   }
 

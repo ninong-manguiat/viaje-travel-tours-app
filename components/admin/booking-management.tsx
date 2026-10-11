@@ -624,14 +624,28 @@ export function BookingManagement() {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-viaje-navy/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[8px] bg-white shadow-[0_28px_80px_-30px_rgba(0,0,0,0.65)]">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-viaje-line bg-white px-5 py-4">
+            <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-viaje-line bg-white px-5 py-4">
               <div>
                 <p className="font-mono text-xs font-medium uppercase tracking-[0.14em] text-viaje-red">{selected.reference ?? selected.id}</p>
                 <h2 className="mt-1 font-serif text-2xl font-semibold text-viaje-navy">Booking Details</h2>
               </div>
-              <Button type="button" variant="outline" size="icon" onClick={closeBooking} aria-label="Close booking details">
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {bookingStatusActions(selected.status).map((action) => (
+                  <Button
+                    key={action.value}
+                    type="button"
+                    size="sm"
+                    variant={action.value === "CANCELLED" ? "outline" : "default"}
+                    className={action.value === "CANCELLED" ? "text-viaje-red" : ""}
+                    onClick={() => updateBookingStatus(action.value)}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+                <Button type="button" variant="outline" size="icon" onClick={closeBooking} aria-label="Close booking details">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-6 p-5">
@@ -646,11 +660,6 @@ export function BookingManagement() {
                   <Button type="button" size="sm" variant="outline" onClick={sendConfirmationEmail} disabled={sendingConfirmation}>
                     <Mail className="h-3.5 w-3.5" />{sendingConfirmation ? "Sending..." : "Send Email"}
                   </Button>
-                  {bookingStatusActions(selected.status).map((action) => (
-                    <Button key={action.value} type="button" size="sm" variant={action.value === "CANCELLED" ? "outline" : "default"} className={action.value === "CANCELLED" ? "text-viaje-red" : ""} onClick={() => updateBookingStatus(action.value)}>
-                      {action.label}
-                    </Button>
-                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -814,20 +823,7 @@ export function BookingManagement() {
                               ) : !["verified", "paid"].includes(
                                 item.status.toLowerCase()
                               ) && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="mt-2"
-                                  onClick={() =>
-                                    setStatus(
-                                      `Payment link UI ready for ${item.label}.`
-                                    )
-                                  }
-                                >
-                                  <LinkIcon className="h-3.5 w-3.5" />
-                                  Send Payment Link
-                                </Button>
+                                <></>
                               )}
                             </TD>
                           </TR>

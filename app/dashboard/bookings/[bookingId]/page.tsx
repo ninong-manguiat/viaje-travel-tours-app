@@ -55,6 +55,33 @@ export default async function BookingDetailsPage({ params }: { params: { booking
           </Card>
 
           <Card>
+            <CardHeader><CardTitle>Payment Schedule</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>Payment</TH>
+                    <TH>Amount</TH>
+                    <TH>Due Date</TH>
+                    <TH>Status</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {!booking.paymentSchedule.length && <TR><TD colSpan={4}>No payment schedule available.</TD></TR>}
+                  {booking.paymentSchedule.map((item, index) => (
+                    <TR key={item.id || `${item.label}-${index}`}>
+                      <TD>{item.label || `Payment ${index + 1}`}</TD>
+                      <TD>{formatPeso(Number(item.amount || 0))}</TD>
+                      <TD>{item.dueDate ? formatDate(item.dueDate) : "N/A"}</TD>
+                      <TD><StatusBadge status={item.status || "pending"} /></TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader><CardTitle>Payment History</CardTitle></CardHeader>
             <CardContent>
               <Table>

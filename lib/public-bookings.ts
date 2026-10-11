@@ -58,7 +58,7 @@ export function paidFromSchedule(schedule: PublicBooking["paymentSchedule"]) {
 
 export function currentBookingBalance(booking: PublicBooking, payments: PublicBookingPayment[]) {
   const totalAmount = numberValue(booking.totalAmount);
-  const totalPaid = payments.length ? paidFromPayments(payments) : paidFromSchedule(booking.paymentSchedule);
+  const totalPaid = Math.max(paidFromSchedule(booking.paymentSchedule), paidFromPayments(payments));
   return {
     totalAmount,
     totalPaid,

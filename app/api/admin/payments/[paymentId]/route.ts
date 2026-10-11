@@ -12,6 +12,50 @@ function isAdmin(request: NextRequest) {
 
 const allowedStatuses = ["for_verification", "verified", "rejected"];
 
+function normalizedStatus(value: unknown) {
+  return String(value || "").toLowerCase();
+}
+
+function numberValue(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function derivedPaymentStatus(schedule: Array<{ status?: string }>) {
+  if (schedule.length && schedule.every((item) => ["verified", "paid"].includes(normalizedStatus(item.status)))) return "paid";
+  if (schedule.some((item) => ["verified", "paid"].includes(normalizedStatus(item.status)))) return "partially_paid";
+  if (schedule.some((item) => normalizedStatus(item.status) === "for_verification")) return "for_verification";
+  return "pending";
+}
+
+function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ id?: string; status?: string }>) {
+  if (currentStatus === "CANCELLED") return "CANCELLED";
+
+  const initialPayment = paymentSchedule.find((item) => item.id === "downpayment") ?? paymentSchedule.find((item) => item.id === "full-payment");
+  if (initialPayment && ["verified", "paid"].includes(normalizedStatus(initialPayment.status))) return "CONFIRMED";
+
+  return currentStatus === "CONFIRMED" ? "CONFIRMED" : "PENDING FOR VERIFICATION";
+}
+
+function paidFromSchedule(schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.reduce((sum, item) => ["verified", "paid"].includes(normalizedStatus(item.status)) ? sum + numberValue(item.amount) : sum, 0);
+}
+
+function matchingScheduleId(payment: FirebaseFirestore.DocumentData, schedule: Array<{ id?: string; label?: string; amount?: number }>) {
+  const directId = String(payment.paymentScheduleId || payment.scheduleItemId || "");
+  if (directId && schedule.some((item) => item.id === directId)) return directId;
+
+  const paymentName = String(payment.paymentName || payment.label || "").trim().toLowerCase();
+  if (paymentName) {
+    const nameMatch = schedule.find((item) => String(item.label || "").trim().toLowerCase() === paymentName);
+    if (nameMatch?.id) return nameMatch.id;
+  }
+
+  const expectedAmount = numberValue(payment.amountExpected || payment.amountSubmitted);
+  const amountMatches = schedule.filter((item) => numberValue(item.amount) === expectedAmount);
+  return amountMatches.length === 1 ? String(amountMatches[0].id || "") : "";
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: { paymentId: string } }) {
   if (!isAdmin(request)) return unauthorized();
 
@@ -33,6 +77,32 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
       latestPaymentId: params.paymentId,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+  }
+
+  if (payment.bookingId) {
+    const bookingRef = adminDb.collection("bookings").doc(String(payment.bookingId));
+    const bookingDoc = await bookingRef.get();
+    const booking = bookingDoc.exists ? bookingDoc.data() ?? {} : null;
+    const schedule = Array.isArray(booking?.paymentSchedule) ? booking.paymentSchedule : [];
+    const scheduleItemId = matchingScheduleId(payment, schedule);
+
+    if (booking && scheduleItemId) {
+      const paymentSchedule = schedule.map((item) =>
+        item.id === scheduleItemId ? { ...item, status } : item
+      );
+      const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
+      const amountPaid = paidFromSchedule(paymentSchedule);
+
+      await bookingRef.set({
+        paymentSchedule,
+        paymentStatus: derivedPaymentStatus(paymentSchedule),
+        status: derivedBookingStatus(booking.status, paymentSchedule),
+        amountPaid,
+        balance: Math.max(0, totalAmount - amountPaid),
+        latestPaymentId: params.paymentId,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
   }
 
   const reference = String(payment.quotationReference || payment.bookingReference || payment.bookingId || payment.quotationId || params.paymentId);
