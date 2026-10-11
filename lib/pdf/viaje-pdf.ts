@@ -6,10 +6,12 @@ import { getPackageById } from "@/lib/package-data";
 import { normalizePaymentMethod } from "@/lib/payment-methods";
 import { getQuotationWithItems, quotationItemDetail, type Quotation } from "@/lib/quotations";
 import { defaultWebsiteContent, mergeWebsiteContent } from "@/lib/website-content";
-import { publicAppBaseUrl } from "@/lib/public-url";
 import { formatDate } from "@/lib/utils";
 
 type FirestoreData = FirebaseFirestore.DocumentData;
+const OFFICIAL_WEBSITE_LABEL = "viajetravelandtours.com";
+const OFFICIAL_WEBSITE_URL = "https://viajetravelandtours.com";
+const FACEBOOK_LABEL = "https://www.facebook.com/viajewithus/";
 
 type PaymentLog = {
   id: string;
@@ -90,31 +92,48 @@ function downloadResponse(buffer: Buffer, filename: string) {
   });
 }
 
-async function footerLines() {
-  const websiteUrl = publicAppBaseUrl();
-  const websiteLabel = websiteUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-
+async function footerInfo() {
   try {
     const { adminDb } = await import("@/lib/firebase-admin");
     const snapshot = await adminDb.collection("websiteContent").doc("homepage").get();
     const content = snapshot.exists ? mergeWebsiteContent(snapshot.data()) : defaultWebsiteContent;
-    return [
-      content.aboutUs.direction,
-      [content.aboutUs.contactNumber, content.aboutUs.landlineNumber, websiteLabel || "Website", content.aboutUs.facebook ? "Facebook Page" : ""].filter(Boolean).join(" | "),
-    ].filter(Boolean);
+    const facebookUrl = String(content.aboutUs.facebook || "").trim();
+    return {
+      lines: [
+        content.aboutUs.direction,
+        [content.aboutUs.contactNumber, content.aboutUs.landlineNumber, OFFICIAL_WEBSITE_LABEL, facebookUrl ? FACEBOOK_LABEL : ""].filter(Boolean).join(" | "),
+      ].filter(Boolean),
+      links: {
+        websiteLabel: OFFICIAL_WEBSITE_LABEL,
+        websiteUrl: OFFICIAL_WEBSITE_URL,
+        facebookLabel: FACEBOOK_LABEL,
+        facebookUrl,
+      },
+    };
   } catch {
-    return [
-      defaultWebsiteContent.aboutUs.direction,
-      [defaultWebsiteContent.aboutUs.contactNumber, defaultWebsiteContent.aboutUs.landlineNumber, websiteLabel || "Website", defaultWebsiteContent.aboutUs.facebook ? "Facebook Page" : ""].filter(Boolean).join(" | "),
-    ];
+    const facebookUrl = String(defaultWebsiteContent.aboutUs.facebook || "").trim();
+    return {
+      lines: [
+        defaultWebsiteContent.aboutUs.direction,
+        [defaultWebsiteContent.aboutUs.contactNumber, defaultWebsiteContent.aboutUs.landlineNumber, OFFICIAL_WEBSITE_LABEL, facebookUrl ? FACEBOOK_LABEL : ""].filter(Boolean).join(" | "),
+      ],
+      links: {
+        websiteLabel: OFFICIAL_WEBSITE_LABEL,
+        websiteUrl: OFFICIAL_WEBSITE_URL,
+        facebookLabel: FACEBOOK_LABEL,
+        facebookUrl,
+      },
+    };
   }
 }
 
 async function createDocument(title: string) {
+  const footer = await footerInfo();
   return new SimplePdf({
     title,
     logoPath: join(process.cwd(), "public/brand/viaje-logo.png"),
-    footerLines: await footerLines(),
+    footerLines: footer.lines,
+    footerLinks: footer.links,
   });
 }
 

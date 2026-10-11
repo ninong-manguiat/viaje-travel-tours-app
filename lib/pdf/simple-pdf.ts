@@ -13,6 +13,22 @@ type PdfImage = {
 
 type PdfPage = {
   ops: string[];
+  annotations: PdfAnnotation[];
+};
+
+type PdfAnnotation = {
+  x: number;
+  yFromTop: number;
+  width: number;
+  height: number;
+  url: string;
+};
+
+type FooterLinks = {
+  websiteLabel?: string;
+  websiteUrl?: string;
+  facebookLabel?: string;
+  facebookUrl?: string;
 };
 
 const PAGE_WIDTH = 612;
@@ -150,16 +166,23 @@ export class SimplePdf {
   private y = MARGIN;
   private logo: PdfImage | null = null;
   private footerLines: string[] = [];
+  private footerLinks: FooterLinks = {};
 
-  constructor({ title, logoPath, footerLines = [] }: { title: string; logoPath?: string; footerLines?: string[] }) {
+  constructor({ title, logoPath, footerLines = [], footerLinks = {} }: { title: string; logoPath?: string; footerLines?: string[]; footerLinks?: FooterLinks }) {
     this.logo = logoPath ? readPng(logoPath) : null;
     this.footerLines = footerLines.map((line) => safeText(line)).filter(Boolean);
+    this.footerLinks = {
+      websiteLabel: safeText(footerLinks.websiteLabel || ""),
+      websiteUrl: safeText(footerLinks.websiteUrl || ""),
+      facebookLabel: safeText(footerLinks.facebookLabel || ""),
+      facebookUrl: safeText(footerLinks.facebookUrl || ""),
+    };
     this.page = this.addPage();
     this.header(title);
   }
 
   private addPage() {
-    const page = { ops: [] };
+    const page = { ops: [], annotations: [] };
     this.pages.push(page);
     this.page = page;
     this.y = MARGIN;
@@ -202,6 +225,12 @@ export class SimplePdf {
     this.page.ops.push(`${this.color(color).replace(" rg", " RG")} ${width} w ${x1.toFixed(2)} ${(PAGE_HEIGHT - y1).toFixed(2)} m ${x2.toFixed(2)} ${(PAGE_HEIGHT - y2).toFixed(2)} l S`);
   }
 
+  private linkAt(x: number, yFromTop: number, width: number, height: number, url?: string) {
+    const cleanUrl = safeText(url || "");
+    if (!cleanUrl) return;
+    this.page.annotations.push({ x, yFromTop, width, height, url: cleanUrl });
+  }
+
   private ensure(height: number) {
     if (this.y + height <= PAGE_HEIGHT - MARGIN - FOOTER_SPACE) return;
     this.footer(this.pages.length);
@@ -220,10 +249,29 @@ export class SimplePdf {
   private footer(pageNumber: number) {
     const top = PAGE_HEIGHT - MARGIN - FOOTER_SPACE + 16;
     this.line(MARGIN, top, PAGE_WIDTH - MARGIN, top, "#d8dee8", 0.8);
-    this.footerLines.slice(0, 2).forEach((line, index) => {
-      this.centeredTextAt(line, top + 15 + index * 13, 7.5, "regular", "#64748b");
-    });
+    if (this.footerLines[0]) this.centeredTextAt(this.footerLines[0], top + 15, 7.5, "regular", "#64748b");
+    if (this.footerLines[1]) this.linkedFooterLine(this.footerLines[1], top + 28, 7.5);
     this.textAt(`Page ${pageNumber}`, PAGE_WIDTH - MARGIN - 36, top + 43, 7.5, "regular", "#64748b");
+  }
+
+  private linkedFooterLine(line: string, yFromTop: number, size: number) {
+    const separator = " | ";
+    const segments = safeText(line).split(separator).filter(Boolean);
+    const totalWidth = segments.reduce((sum, segment, index) => sum + textWidth(segment, size) + (index ? textWidth(separator, size) : 0), 0);
+    let x = Math.max(MARGIN, Math.min((PAGE_WIDTH - totalWidth) / 2, PAGE_WIDTH - MARGIN - totalWidth));
+
+    segments.forEach((segment, index) => {
+      if (index) {
+        this.textAt(separator, x, yFromTop, size, "regular", "#64748b");
+        x += textWidth(separator, size);
+      }
+
+      const segmentWidth = textWidth(segment, size);
+      this.textAt(segment, x, yFromTop, size, "regular", "#64748b");
+      if (segment === this.footerLinks.websiteLabel) this.linkAt(x, yFromTop, segmentWidth, size + 3, this.footerLinks.websiteUrl);
+      if (segment === this.footerLinks.facebookLabel) this.linkAt(x, yFromTop, segmentWidth, size + 3, this.footerLinks.facebookUrl);
+      x += segmentWidth;
+    });
   }
 
   section(title: string) {
@@ -368,8 +416,14 @@ export class SimplePdf {
         stream,
         Buffer.from("\nendstream", "binary"),
       ]));
+      const annotationIds = page.annotations.map((annotation) => {
+        const yTop = PAGE_HEIGHT - annotation.yFromTop + 3;
+        const yBottom = yTop - annotation.height;
+        return addObject(`<< /Type /Annot /Subtype /Link /Rect [${annotation.x.toFixed(2)} ${yBottom.toFixed(2)} ${(annotation.x + annotation.width).toFixed(2)} ${yTop.toFixed(2)}] /Border [0 0 0] /A << /S /URI /URI (${escapePdfText(annotation.url)}) >> >>`);
+      });
       const resources = `<< /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> ${logoId ? `/XObject << /ImLogo ${logoId} 0 R >>` : ""} >>`;
-      pageIds.push(addObject(`<< /Type /Page /Parent PAGES_REF /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources ${resources} /Contents ${contentId} 0 R >>`));
+      const annotations = annotationIds.length ? `/Annots [${annotationIds.map((id) => `${id} 0 R`).join(" ")}] ` : "";
+      pageIds.push(addObject(`<< /Type /Page /Parent PAGES_REF /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ${annotations}/Resources ${resources} /Contents ${contentId} 0 R >>`));
     });
 
     const pagesId = objects.length + 1;

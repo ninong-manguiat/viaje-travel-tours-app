@@ -1246,7 +1246,7 @@ function WebsiteContentPreview({ content }: { content: WebsiteContent }) {
           <div className="mt-3 space-y-2 text-xs leading-5 text-viaje-soft">
             <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.contactNumber}</p>
             <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.landlineNumber}</p>
-            <p className="flex items-center gap-2"><Facebook className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.facebook || "Facebook page"}</p>
+            <p className="flex items-center gap-2"><Facebook className="h-3.5 w-3.5 text-viaje-red" />{content.aboutUs.facebook}</p>
             <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-viaje-red" />{content.aboutUs.direction}</p>
           </div>
         </PreviewSection>
