@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { logActivity } from "@/lib/activity-log";
+import { emailTemplateSubjects } from "@/lib/email-templates";
+import { getPackageById } from "@/lib/package-data";
+import { publicAppUrl } from "@/lib/public-url";
+import { sendBookingConfirmedEmail } from "@/lib/resend-template-registry";
+import { formatDate, formatPeso } from "@/lib/utils";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -72,6 +77,71 @@ function serializeDate(value: unknown) {
   return "";
 }
 
+function validEmail(value: unknown) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+async function sendBookingConfirmedNotification({
+  request,
+  bookingId,
+  booking,
+  payment,
+  paymentSchedule,
+  amountPaid,
+  totalAmount,
+}: {
+  request: NextRequest;
+  bookingId: string;
+  booking: FirebaseFirestore.DocumentData;
+  payment: FirebaseFirestore.DocumentData;
+  paymentSchedule: Array<{ id?: string; label?: string; amount?: number; status?: string }>;
+  amountPaid: number;
+  totalAmount: number;
+}) {
+  const recipient = String(booking.groupContact?.emailAddress || "").trim();
+  if (!validEmail(recipient)) return { attempted: false, sent: false, reason: "missing_recipient" };
+
+  const reference = String(booking.reference || payment.bookingReference || bookingId);
+  const pkg = booking.packageId ? await getPackageById(String(booking.packageId)).catch(() => null) : null;
+  const paymentAmount = numberValue(payment.amountSubmitted || payment.amountExpected);
+  const remainingBalance = Math.max(0, totalAmount - amountPaid);
+  const bookingUrl = publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request);
+  const matchedSchedule = paymentSchedule.find((item) => item.id === String(payment.paymentScheduleId || payment.scheduleItemId || ""));
+
+  const result = await sendBookingConfirmedEmail({
+    firstName: String(booking.groupContact?.firstName || "there"),
+    bookingReference: reference,
+    packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
+    paymentName: String(payment.paymentName || payment.label || matchedSchedule?.label || "Verified Payment"),
+    paymentAmount: formatPeso(paymentAmount),
+    paymentMethod: String(payment.method || "To be verified"),
+    paymentDate: payment.paymentDate ? formatDate(String(payment.paymentDate)) : formatDate(new Date().toISOString()),
+    totalAmount: formatPeso(totalAmount),
+    totalPaid: formatPeso(amountPaid),
+    remainingBalance: formatPeso(remainingBalance),
+    bookingUrl,
+  }, {
+    recipient,
+    subject: `${emailTemplateSubjects.BOOKING_CONFIRMED} - ${reference}`,
+    relatedEntityType: "booking",
+    relatedEntityId: bookingId,
+    relatedReference: reference,
+    metadata: {
+      paymentId: String(payment.id || ""),
+      paymentScheduleId: String(payment.paymentScheduleId || payment.scheduleItemId || ""),
+      bookingUrl,
+    },
+  }).catch((error) => ({
+    ok: false as const,
+    error: error instanceof Error ? error.message : "Unable to send booking confirmation email.",
+    logId: undefined,
+  }));
+
+  return result.ok
+    ? { attempted: true, sent: true, logId: result.logId, resendEmailId: result.resendEmailId }
+    : { attempted: true, sent: false, reason: result.error, logId: result.logId };
+}
+
 function serializePayment(id: string, data: FirebaseFirestore.DocumentData) {
   return {
     id,
@@ -133,6 +203,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
     }, { merge: true });
   }
 
+  let emailResult: Awaited<ReturnType<typeof sendBookingConfirmedNotification>> | null = null;
+
   if (payment.bookingId) {
     const bookingRef = adminDb.collection("bookings").doc(String(payment.bookingId));
     const bookingDoc = await bookingRef.get();
@@ -146,16 +218,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
       );
       const totalAmount = authoritativeTotal(booking, paymentSchedule);
       const amountPaid = paidFromSchedule(paymentSchedule);
+      const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
 
       await bookingRef.set({
         paymentSchedule,
         paymentStatus: derivedPaymentStatus(paymentSchedule),
-        status: derivedBookingStatus(booking.status, paymentSchedule),
+        status: bookingStatus,
         amountPaid,
         balance: Math.max(0, totalAmount - amountPaid),
         latestPaymentId: params.paymentId,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+
+      if (status === "verified" && booking.status !== "CONFIRMED" && bookingStatus === "CONFIRMED") {
+        emailResult = await sendBookingConfirmedNotification({
+          request,
+          bookingId: String(payment.bookingId),
+          booking,
+          payment: { ...payment, id: params.paymentId },
+          paymentSchedule,
+          amountPaid,
+          totalAmount,
+        });
+      }
     }
   }
 
@@ -172,7 +257,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
     metadata: { status },
   });
 
-  return NextResponse.json({ payment: serializePayment(params.paymentId, { ...payment, status, updatedAt: new Date().toISOString() }) });
+  return NextResponse.json({
+    payment: serializePayment(params.paymentId, { ...payment, status, updatedAt: new Date().toISOString() }),
+    email: emailResult,
+  });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { paymentId: string } }) {
