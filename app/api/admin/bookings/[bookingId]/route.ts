@@ -190,6 +190,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
 
     await ref.set({
       paymentSchedule,
+      totalAmount,
       paymentStatus,
       status: bookingStatus,
       amountPaid,
@@ -207,7 +208,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
       href: `/admin/bookings?bookingId=${encodeURIComponent(params.bookingId)}`,
       metadata: { scheduleItemId, status },
     });
-    return NextResponse.json({ paymentSchedule, paymentStatus, status: bookingStatus });
+    return NextResponse.json({ paymentSchedule, totalAmount, paymentStatus, status: bookingStatus, amountPaid, balance: Math.max(0, totalAmount - amountPaid) });
   }
 
   if (action === "addPaymentSchedule") {
@@ -215,22 +216,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const amount = Number(body?.amount);
     const dueDate = String(body?.dueDate || "").slice(0, 10);
     const totalAmount = Number(booking.totalAmount ?? booking.bookingSelections?.finalAmount ?? 0);
-    const allocatedAmount = schedule.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
     if (!label || !Number.isFinite(amount) || amount <= 0 || !dueDate) {
       return NextResponse.json({ error: "Payment name, amount, and due date are required." }, { status: 400 });
     }
 
-    const overage = allocatedAmount + amount - totalAmount;
-    const remainingBalanceItem = schedule.find((item) => item.id === "remaining-balance");
-
-    const adjustedSchedule = overage > 0 && remainingBalanceItem && Number(remainingBalanceItem.amount || 0) >= overage
-      ? schedule.map((item) => item.id === "remaining-balance" ? { ...item, amount: Number(item.amount || 0) - overage } : item)
-      : schedule;
     const scheduleItem = { id: `custom-${Date.now()}`, label, amount, dueDate, status: "pending" };
-    const paymentSchedule = [...adjustedSchedule, scheduleItem];
+    const paymentSchedule = [...schedule, scheduleItem];
     const amountPaid = paidFromSchedule(paymentSchedule);
-    const authoritativeTotal = paymentSchedule.reduce((sum, item) => sum + Number(item.amount || 0), 0) || totalAmount;
+    const authoritativeTotalAmount = authoritativeTotal(booking, paymentSchedule) || totalAmount;
     const paymentStatus = derivedPaymentStatus(paymentSchedule);
     const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
     const paymentLog = {
@@ -256,19 +250,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     };
     await ref.set({
       paymentSchedule,
+      totalAmount: authoritativeTotalAmount,
       paymentStatus,
       status: bookingStatus,
       amountPaid,
-      balance: Math.max(0, authoritativeTotal - amountPaid),
+      balance: Math.max(0, authoritativeTotalAmount - amountPaid),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     await adminDb.collection("payments").doc(paymentLog.id).set(paymentLog, { merge: true });
     return NextResponse.json({
       paymentSchedule,
+      totalAmount: authoritativeTotalAmount,
       paymentStatus,
       status: bookingStatus,
       amountPaid,
-      balance: Math.max(0, authoritativeTotal - amountPaid),
+      balance: Math.max(0, authoritativeTotalAmount - amountPaid),
       paymentLog: { ...paymentLog, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
     });
   }

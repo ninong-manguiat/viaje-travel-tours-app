@@ -71,7 +71,8 @@ export function pendingVerificationSchedules(schedule: PublicBooking["paymentSch
 
 export function currentBookingBalance(booking: PublicBooking, payments: PublicBookingPayment[]) {
   const scheduleTotal = activeScheduleTotal(booking.paymentSchedule);
-  const totalAmount = booking.paymentSchedule.length ? scheduleTotal : numberValue(booking.totalAmount);
+  const persistedTotal = numberValue(booking.totalAmount);
+  const totalAmount = booking.paymentSchedule.length ? Math.max(scheduleTotal, persistedTotal) : persistedTotal;
   const totalPaid = Math.max(paidFromSchedule(booking.paymentSchedule), paidFromPayments(payments));
   return {
     totalAmount,

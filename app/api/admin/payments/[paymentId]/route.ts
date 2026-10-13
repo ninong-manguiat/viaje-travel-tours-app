@@ -224,6 +224,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
 
       await bookingRef.set({
         paymentSchedule,
+        totalAmount,
         paymentStatus: derivedPaymentStatus(paymentSchedule),
         status: bookingStatus,
         amountPaid,
@@ -294,6 +295,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { payme
       const amountPaid = paidFromSchedule(paymentSchedule);
       updatedBooking = {
         paymentSchedule,
+        totalAmount,
         paymentStatus: derivedPaymentStatus(paymentSchedule),
         status: derivedBookingStatus(booking.status, paymentSchedule),
         amountPaid,

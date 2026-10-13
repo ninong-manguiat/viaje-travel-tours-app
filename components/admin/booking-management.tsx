@@ -143,6 +143,10 @@ function paidFromSchedule(schedule: PaymentScheduleItem[]) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(item.status.toLowerCase()) ? sum + Number(item.amount || 0) : sum, 0);
 }
 
+function activeScheduleTotal(schedule: PaymentScheduleItem[]) {
+  return schedule.reduce((sum, item) => ["cancelled", "deleted"].includes(String(item.status || "").toLowerCase()) ? sum : sum + Number(item.amount || 0), 0);
+}
+
 function paymentLogForScheduleItem(item: PaymentScheduleItem, paymentLogs: BookingPaymentLog[] = []) {
   return paymentLogs.find((payment) => payment.paymentScheduleId === item.id) ?? null;
 }
@@ -318,7 +322,8 @@ export function BookingManagement() {
 
   const selectedSchedule = useMemo(() => selected ? scheduleFor(selected) : [], [selected]);
   const totalPaid = paidFromSchedule(selectedSchedule);
-  const totalAmount = Number(selected?.totalAmount ?? selected?.bookingSelections?.finalAmount ?? 0);
+  const persistedTotalAmount = Number(selected?.totalAmount ?? selected?.bookingSelections?.finalAmount ?? 0);
+  const totalAmount = selectedSchedule.length ? Math.max(activeScheduleTotal(selectedSchedule), persistedTotalAmount) : persistedTotalAmount;
   const remainingBalance = Math.max(0, totalAmount - totalPaid);
   const hasUnsavedDetails = Boolean(selected && editDraft && JSON.stringify(editDraft) !== JSON.stringify(bookingEditDraft(selected)));
 
@@ -436,6 +441,7 @@ export function BookingManagement() {
     const updated = {
       ...selected,
       paymentSchedule: data.paymentSchedule,
+      totalAmount: Number(data.totalAmount ?? selected.totalAmount ?? 0),
       paymentStatus: data.paymentStatus ?? selected.paymentStatus,
       status: data.status ?? selected.status,
       amountPaid: Number(data.amountPaid ?? selected.amountPaid ?? 0),
