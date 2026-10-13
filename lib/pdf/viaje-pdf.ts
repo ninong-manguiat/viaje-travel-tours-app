@@ -48,16 +48,16 @@ function numberValue(value: unknown) {
 
 function safeDate(value: unknown) {
   if (!value) return "N/A";
-  let date: Date | null = null;
-  if (value instanceof Date) date = value;
-  else if (typeof value === "string" || typeof value === "number") date = new Date(value);
+  let date: Date | string | number | null = null;
+  if (value instanceof Date || typeof value === "string" || typeof value === "number") date = value;
   else if (typeof value === "object" && "toDate" in value && typeof value.toDate === "function") date = value.toDate();
   else if (typeof value === "object" && "seconds" in value && typeof value.seconds === "number") date = new Date(value.seconds * 1000);
   else if (typeof value === "object" && "_seconds" in value && typeof value._seconds === "number") date = new Date(value._seconds * 1000);
 
-  if (!date || Number.isNaN(date.getTime())) return "N/A";
+  if (!date) return "N/A";
   try {
-    return formatDate(date);
+    const formatted = formatDate(date);
+    return formatted === "Invalid date" ? "N/A" : formatted;
   } catch {
     return "N/A";
   }

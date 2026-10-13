@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { logActivity } from "@/lib/activity-log";
 import { sendPaymentSubmissionEmail } from "@/lib/payment-submission-email";
 import { getQuotationByToken } from "@/lib/quotations";
+import { todayDateOnly } from "@/lib/utils";
 
 export async function POST(request: NextRequest, { params }: { params: { token: string } }) {
   const quotation = await getQuotationByToken("paymentToken", params.token);
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
     amountExpected: quotation.totalAmount,
     amountSubmitted: quotation.totalAmount,
     receiptUrl,
-    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentDate: todayDateOnly(),
     notes: String(body?.notes || ""),
     status: "for_verification",
     createdAt: FieldValue.serverTimestamp(),

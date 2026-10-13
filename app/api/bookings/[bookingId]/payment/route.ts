@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { logActivity } from "@/lib/activity-log";
 import { sendPaymentSubmissionEmail } from "@/lib/payment-submission-email";
 import { currentBookingBalance, getPublicBooking } from "@/lib/public-bookings";
+import { todayDateOnly } from "@/lib/utils";
 
 function normalizedStatus(value: unknown) {
   return String(value || "").toLowerCase();
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest, { params }: { params: { booking
       amountExpected: Number(scheduleItem.amount || 0),
       amountSubmitted: Number(scheduleItem.amount || 0),
       receiptUrl,
-      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentDate: todayDateOnly(),
       notes,
       status: "for_verification",
       createdAt: FieldValue.serverTimestamp(),

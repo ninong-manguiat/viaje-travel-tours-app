@@ -122,6 +122,7 @@ function timeLabel(value?: string) {
   if (!value) return "No time";
 
   return new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Manila",
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));

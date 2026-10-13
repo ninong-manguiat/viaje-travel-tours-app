@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { isoCountryCodes } from "@/lib/countries";
 import type { PaymentMethod } from "@/lib/payment-methods";
 import type { TravelPackage } from "@/lib/types";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatDate, formatPeso, todayDateOnly } from "@/lib/utils";
 
 const steps = [
   { id: "guests", label: "Guests" },
@@ -134,7 +134,7 @@ function isValidEmail(value: string) {
 }
 
 function dateOnly(value?: string) {
-  return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return value ? value.slice(0, 10) : todayDateOnly();
 }
 
 function paymentAmounts(finalAmount: number, paymentOption: PaymentOption) {
@@ -387,7 +387,7 @@ export function GuestCheckoutClient({
           paymentOption: effectivePaymentOption,
           paymentSchedule,
           remainingBalance,
-          paymentDate: new Date().toISOString().slice(0, 10),
+          paymentDate: todayDateOnly(),
         },
       }),
     });

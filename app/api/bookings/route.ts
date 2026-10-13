@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity-log";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatDate, formatPeso, todayDateOnly } from "@/lib/utils";
 
 function referenceNumber() {
   const date = new Date();
@@ -20,7 +20,7 @@ function numberValue(value: unknown) {
 }
 
 function dateOnly(value?: string) {
-  return value ? value.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return value ? value.slice(0, 10) : todayDateOnly();
 }
 
 function normalizeContactNumber(value: unknown) {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       paymentMethodReferenceNumber: body?.payment?.paymentMethodReferenceNumber ?? "",
       receiptUrl: body?.payment?.receiptUrl ?? "",
       amountSubmitted,
-      paymentDate: body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10),
+      paymentDate: body?.payment?.paymentDate ?? todayDateOnly(),
     },
     paymentSchedule: schedule,
     bookingSelections: {
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
       amountExpected: item.amount,
       amountSubmitted: submitted ? amountSubmitted : 0,
       receiptUrl: submitted ? body?.payment?.receiptUrl ?? "" : "",
-      paymentDate: submitted ? body?.payment?.paymentDate ?? new Date().toISOString().slice(0, 10) : "",
+      paymentDate: submitted ? body?.payment?.paymentDate ?? todayDateOnly() : "",
       notes: submitted ? body?.payment?.notes ?? "" : "",
       status: submitted ? "for_verification" : "pending",
       createdAt: FieldValue.serverTimestamp(),
