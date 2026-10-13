@@ -36,10 +36,12 @@ function derivedPaymentStatus(schedule: Array<{ status?: string }>) {
 function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ id?: string; status?: string }>) {
   if (currentStatus === "CANCELLED") return "CANCELLED";
 
-  const initialPayment = paymentSchedule.find((item) => item.id === "downpayment") ?? paymentSchedule.find((item) => item.id === "full-payment");
-  if (initialPayment && ["verified", "paid"].includes(normalizedStatus(initialPayment.status))) return "CONFIRMED";
+  const activeSchedule = paymentSchedule.filter((item) => !["cancelled", "deleted"].includes(normalizedStatus(item.status)));
+  const hasVerifiedPayment = activeSchedule.some((item) => ["verified", "paid"].includes(normalizedStatus(item.status)));
+  if (!hasVerifiedPayment) return "PENDING FOR VERIFICATION";
 
-  return currentStatus === "CONFIRMED" ? "CONFIRMED" : "PENDING FOR VERIFICATION";
+  const allActivePaymentsVerified = activeSchedule.length > 0 && activeSchedule.every((item) => ["verified", "paid"].includes(normalizedStatus(item.status)));
+  return allActivePaymentsVerified ? "CONFIRMED" : "RESERVED";
 }
 
 function paidFromSchedule(schedule: Array<{ amount?: number; status?: string }>) {

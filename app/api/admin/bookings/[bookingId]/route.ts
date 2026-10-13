@@ -7,7 +7,7 @@ import { logActivity } from "@/lib/activity-log";
 import { deleteFile } from "@/lib/storage";
 
 const paymentStatuses = ["pending", "for_verification", "verified", "rejected", "paid", "partially_paid"];
-const bookingStatuses = ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"];
+const bookingStatuses = ["PENDING FOR VERIFICATION", "RESERVED", "CONFIRMED", "CANCELLED"];
 const allowedContactFields = ["firstName", "middleName", "lastName", "emailAddress", "mobileNumber", "nationality"];
 const allowedGuestFields = ["firstName", "middleName", "lastName", "birthdate", "nationality", "passportNumber", "isPwd"];
 
@@ -33,10 +33,12 @@ function derivedPaymentStatus(schedule: Array<{ status?: string }>) {
 function derivedBookingStatus(currentStatus: unknown, paymentSchedule: Array<{ id?: string; status?: string }>) {
   if (currentStatus === "CANCELLED") return "CANCELLED";
 
-  const initialPayment = paymentSchedule.find((item) => item.id === "downpayment") ?? paymentSchedule.find((item) => item.id === "full-payment");
-  if (initialPayment && ["verified", "paid"].includes(normalizedStatus(initialPayment.status))) return "CONFIRMED";
+  const activeSchedule = paymentSchedule.filter((item) => !["cancelled", "deleted"].includes(normalizedStatus(item.status)));
+  const hasVerifiedPayment = activeSchedule.some((item) => ["verified", "paid"].includes(normalizedStatus(item.status)));
+  if (!hasVerifiedPayment) return "PENDING FOR VERIFICATION";
 
-  return currentStatus === "CONFIRMED" ? "CONFIRMED" : "PENDING FOR VERIFICATION";
+  const allActivePaymentsVerified = activeSchedule.length > 0 && activeSchedule.every((item) => ["verified", "paid"].includes(normalizedStatus(item.status)));
+  return allActivePaymentsVerified ? "CONFIRMED" : "RESERVED";
 }
 
 function numberValue(value: unknown) {
@@ -46,6 +48,14 @@ function numberValue(value: unknown) {
 
 function paidFromSchedule(schedule: Array<{ amount?: number; status?: string }>) {
   return schedule.reduce((sum, item) => ["verified", "paid"].includes(normalizedStatus(item.status)) ? sum + numberValue(item.amount) : sum, 0);
+}
+
+function activeScheduleTotal(schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.reduce((sum, item) => ["cancelled", "deleted"].includes(normalizedStatus(item.status)) ? sum : sum + numberValue(item.amount), 0);
+}
+
+function authoritativeTotal(booking: FirebaseFirestore.DocumentData, schedule: Array<{ amount?: number; status?: string }>) {
+  return schedule.length ? activeScheduleTotal(schedule) : numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
 }
 
 function documentToken() {
@@ -145,6 +155,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const status = String(body?.status || "");
 
     if (!bookingStatuses.includes(status)) return NextResponse.json({ error: "Invalid booking status" }, { status: 400 });
+    if (status === "CONFIRMED" && derivedBookingStatus(booking.status, schedule) !== "CONFIRMED") {
+      return NextResponse.json({ error: "Booking can only be confirmed when all active payment schedules are verified." }, { status: 400 });
+    }
 
     await ref.set({ status, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     await logActivity({
@@ -172,7 +185,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const paymentSchedule = schedule.map((item) => item.id === scheduleItemId ? { ...item, status } : item);
     const paymentStatus = derivedPaymentStatus(paymentSchedule);
     const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
-    const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
+    const totalAmount = authoritativeTotal(booking, paymentSchedule);
     const amountPaid = paidFromSchedule(paymentSchedule);
 
     await ref.set({
@@ -218,6 +231,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     const paymentSchedule = [...adjustedSchedule, scheduleItem];
     const amountPaid = paidFromSchedule(paymentSchedule);
     const authoritativeTotal = paymentSchedule.reduce((sum, item) => sum + Number(item.amount || 0), 0) || totalAmount;
+    const paymentStatus = derivedPaymentStatus(paymentSchedule);
+    const bookingStatus = derivedBookingStatus(booking.status, paymentSchedule);
     const paymentLog = {
       id: `pay-${params.bookingId}-${scheduleItem.id}`,
       transactionId: "",
@@ -241,13 +256,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { bookin
     };
     await ref.set({
       paymentSchedule,
-      paymentStatus: derivedPaymentStatus(paymentSchedule),
+      paymentStatus,
+      status: bookingStatus,
       amountPaid,
       balance: Math.max(0, authoritativeTotal - amountPaid),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     await adminDb.collection("payments").doc(paymentLog.id).set(paymentLog, { merge: true });
-    return NextResponse.json({ paymentSchedule, paymentLog: { ...paymentLog, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+    return NextResponse.json({
+      paymentSchedule,
+      paymentStatus,
+      status: bookingStatus,
+      amountPaid,
+      balance: Math.max(0, authoritativeTotal - amountPaid),
+      paymentLog: { ...paymentLog, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    });
   }
 
   if (action === "updateContactGuests") {

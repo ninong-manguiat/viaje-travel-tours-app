@@ -23,7 +23,7 @@ const moduleConfigs = [
     description: "Customer bookings and verification progress",
     collection: "bookings",
     href: "/admin/bookings",
-    statuses: ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"],
+    statuses: ["PENDING FOR VERIFICATION", "RESERVED", "CONFIRMED", "CANCELLED"],
   },
   {
     key: "payments",

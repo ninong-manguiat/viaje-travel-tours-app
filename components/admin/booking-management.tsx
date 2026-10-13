@@ -90,7 +90,7 @@ type BookingEditDraft = {
   guests: Array<Record<string, unknown>>;
 };
 
-const bookingStatusOptions = ["PENDING FOR VERIFICATION", "CONFIRMED", "CANCELLED"];
+const bookingStatusOptions = ["PENDING FOR VERIFICATION", "RESERVED", "CONFIRMED", "CANCELLED"];
 const contactEditableFields = [
   ["firstName", "First Name"],
   ["middleName", "Middle Name"],
@@ -436,6 +436,10 @@ export function BookingManagement() {
     const updated = {
       ...selected,
       paymentSchedule: data.paymentSchedule,
+      paymentStatus: data.paymentStatus ?? selected.paymentStatus,
+      status: data.status ?? selected.status,
+      amountPaid: Number(data.amountPaid ?? selected.amountPaid ?? 0),
+      balance: Number(data.balance ?? selected.balance ?? 0),
       paymentLogs: data.paymentLog ? [...(selected.paymentLogs ?? []), data.paymentLog] : selected.paymentLogs,
     };
     setSelected(updated);
