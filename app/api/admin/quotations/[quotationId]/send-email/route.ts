@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQuotationWithItems, quotationItemDetail } from "@/lib/quotations";
+import { getQuotationWithItems } from "@/lib/quotations";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendQuotationEmail } from "@/lib/resend-template-registry";
 import { formatPeso } from "@/lib/utils";
@@ -25,10 +25,46 @@ function escapeHtml(value: string | number) {
 
 function safeSendError(message = "") {
   const normalized = message.toLowerCase();
+  if (normalized.includes("2,000 character limit")) return message;
   if (normalized.includes("api key")) return "Email service is not configured.";
   if (normalized.includes("domain") && normalized.includes("verif")) return "Email sender domain is not verified in Resend.";
   if (normalized.includes("from")) return "Email sender was rejected by Resend. Check EMAIL_FROM and sender domain verification.";
   return "Unable to send quotation email.";
+}
+
+const MAX_QUOTATION_EMAIL_ITEMS = 8;
+type QuotationEmailItem = NonNullable<Awaited<ReturnType<typeof getQuotationWithItems>>>["items"][number];
+
+function pluralize(count: number, singular: string) {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+function quotationItemsSummaryHtml(items: QuotationEmailItem[]) {
+  const visibleItems = items.slice(0, MAX_QUOTATION_EMAIL_ITEMS);
+  const remainingCount = Math.max(0, items.length - visibleItems.length);
+  return [
+    ...visibleItems.map((item) => `
+      <p>
+        <strong>${escapeHtml(item.itemName)}</strong><br>
+        Amount: ${escapeHtml(formatPeso(item.amount))}
+      </p>
+    `),
+    remainingCount > 0
+      ? `<p>${escapeHtml(`${pluralize(remainingCount, "more item")} included. Open the secure quotation link for full details.`)}</p>`
+      : "",
+  ].filter(Boolean).join("");
+}
+
+function quotationItemsSummaryText(items: QuotationEmailItem[]) {
+  const visibleItems = items.slice(0, MAX_QUOTATION_EMAIL_ITEMS);
+  const remainingCount = Math.max(0, items.length - visibleItems.length);
+  return [
+    ...visibleItems.map((item) => [
+      item.itemName,
+      `Amount: ${formatPeso(item.amount)}`,
+    ].join("\n")),
+    remainingCount > 0 ? `${pluralize(remainingCount, "more item")} included. Open the secure quotation link for full details.` : "",
+  ].filter(Boolean).join("\n\n");
 }
 
 export async function POST(request: NextRequest, { params }: { params: { quotationId: string } }) {
@@ -39,23 +75,8 @@ export async function POST(request: NextRequest, { params }: { params: { quotati
   if (!emailPattern.test(quotation.email)) return NextResponse.json({ error: "Quotation has no valid email address." }, { status: 400 });
 
   const quotationUrl = publicAppUrl(`/quotation/${quotation.publicToken}`, request);
-  const quotationItemsHtml = quotation.items.map((item) => `
-    <p>
-      <strong>${escapeHtml(item.itemName)}</strong><br>
-      ${quotationItemDetail(item) ? `${escapeHtml(quotationItemDetail(item)?.label ?? "")}: ${escapeHtml(quotationItemDetail(item)?.value ?? "")}<br>` : ""}
-      Remarks: ${escapeHtml(item.remarks)}<br>
-      Amount: ${escapeHtml(formatPeso(item.amount))}
-    </p>
-  `).join("");
-  const quotationItemsText = quotation.items.map((item) => {
-    const detail = quotationItemDetail(item);
-    return [
-      item.itemName,
-      detail ? `${detail.label}: ${detail.value}` : "",
-      `Remarks: ${item.remarks}`,
-      `Amount: ${formatPeso(item.amount)}`,
-    ].filter(Boolean).join("\n");
-  }).join("\n\n");
+  const quotationItemsHtml = quotationItemsSummaryHtml(quotation.items);
+  const quotationItemsText = quotationItemsSummaryText(quotation.items);
 
   const result = await sendQuotationEmail({
     clientName: quotation.clientName,

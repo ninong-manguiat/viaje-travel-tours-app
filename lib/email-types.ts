@@ -40,7 +40,6 @@ export type BookingReceivedEmailData = {
   paymentAmount: string;
   remainingBalance: string;
   paymentMethod: string;
-  itineraryContent: string;
   bookingUrl: string;
 };
 

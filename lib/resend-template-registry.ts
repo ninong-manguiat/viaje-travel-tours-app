@@ -52,7 +52,6 @@ const requiredFields = {
     "paymentAmount",
     "remainingBalance",
     "paymentMethod",
-    "itineraryContent",
     "bookingUrl",
   ],
   BOOKING_CONFIRMED: [
@@ -107,6 +106,8 @@ const requiredFields = {
   ],
 } satisfies Record<TransactionalEmailType, string[]>;
 
+const RESEND_TEMPLATE_VARIABLE_LIMIT = 2000;
+
 export function formatCurrencyForEmail(value: number) {
   return formatPeso(value);
 }
@@ -119,17 +120,6 @@ export function formatDocumentRequirementsForEmail(requirements: string[]) {
   return requirements.map((item) => item.trim()).filter(Boolean).join("\n");
 }
 
-export function formatItineraryForEmail(days: Array<{ day?: string; name?: string; activities?: Array<{ activity?: string }> }>) {
-  return days
-    .map((item) => {
-      const title = [item.day, item.name].filter(Boolean).join(": ");
-      const activities = (item.activities ?? []).map((activity) => activity.activity).filter(Boolean).join(", ");
-      return [title, activities].filter(Boolean).join(" - ");
-    })
-    .filter(Boolean)
-    .join("\n");
-}
-
 function stringifyVariables(data: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => {
@@ -138,6 +128,19 @@ function stringifyVariables(data: Record<string, unknown>) {
       return [key, typeof value === "number" ? value : String(value ?? "")];
     })
   ) as Record<string, string | number>;
+}
+
+function validateTemplateVariableLengths(emailType: TransactionalEmailType, variables: Record<string, string | number>) {
+  for (const [key, value] of Object.entries(variables)) {
+    const stringValue = String(value ?? "");
+    if (stringValue.length > RESEND_TEMPLATE_VARIABLE_LIMIT) {
+      console.warn(
+        `[Resend template variable limit] ${emailType}.${key} is ${stringValue.length} characters; maximum is ${RESEND_TEMPLATE_VARIABLE_LIMIT}.`
+      );
+      return `Template variable "${key}" exceeds the 2,000 character limit for ${resendTemplateAliases[emailType]}.`;
+    }
+  }
+  return "";
 }
 
 function validateTemplatePayload<T extends TransactionalEmailType>(emailType: T, data: TemplatePayloads[T]) {
@@ -158,6 +161,9 @@ async function sendTemplateEmail<T extends TransactionalEmailType>(
 ): Promise<SendEmailResult> {
   const validationError = validateTemplatePayload(emailType, data);
   if (validationError) return { ok: false, error: validationError };
+  const variables = stringifyVariables(data as Record<string, unknown>);
+  const variableLengthError = validateTemplateVariableLengths(emailType, variables);
+  if (variableLengthError) return { ok: false, error: variableLengthError };
 
   return sendEmail({
     recipient: options.recipient,
@@ -165,7 +171,7 @@ async function sendTemplateEmail<T extends TransactionalEmailType>(
     subject: options.subject || emailTemplateSubjects[emailType],
     template: {
       id: resendTemplateAliases[emailType],
-      variables: stringifyVariables(data as Record<string, unknown>),
+      variables,
     },
     relatedEntityType: options.relatedEntityType,
     relatedEntityId: options.relatedEntityId,

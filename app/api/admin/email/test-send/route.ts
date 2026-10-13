@@ -49,7 +49,6 @@ function sampleHtml(request: NextRequest, emailType: TransactionalEmailType) {
       paymentAmount: "PHP 69,000.00",
       remainingBalance: "PHP 69,000.00",
       paymentMethod: "Bank Transfer",
-      itineraryContent: "Tokyo, Mt. Fuji, Osaka",
       bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     });
   }
@@ -128,7 +127,6 @@ function sendSampleTemplate(request: NextRequest, emailType: TransactionalEmailT
       paymentAmount: "PHP 69,000.00",
       remainingBalance: "PHP 69,000.00",
       paymentMethod: "Bank Transfer",
-      itineraryContent: "Tokyo, Mt. Fuji, Osaka",
       bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
     }, options);
   }

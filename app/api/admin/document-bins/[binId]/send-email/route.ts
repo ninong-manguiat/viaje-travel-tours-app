@@ -21,6 +21,18 @@ function safeSendError(message = "") {
   return "Unable to send document request email.";
 }
 
+const MAX_DOCUMENT_REQUIREMENTS_IN_EMAIL = 25;
+
+function documentRequirementSummary(requirements: string[]) {
+  const visibleRequirements = requirements.slice(0, MAX_DOCUMENT_REQUIREMENTS_IN_EMAIL);
+  const remainingCount = Math.max(0, requirements.length - visibleRequirements.length);
+  if (!remainingCount) return visibleRequirements;
+  return [
+    ...visibleRequirements,
+    `${remainingCount} more requirement${remainingCount === 1 ? "" : "s"} listed in the secure document bin.`,
+  ];
+}
+
 export async function POST(request: NextRequest, { params }: { params: { binId: string } }) {
   if (!isAdmin(request)) return unauthorized();
 
@@ -45,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { binId: 
     clientName: bin.clientName,
     documentBinReference: bin.referenceNumber,
     purpose: bin.purpose,
-    documentRequirements: bin.requirements.map(documentName),
+    documentRequirements: documentRequirementSummary(bin.requirements.map(documentName)),
     documentBinUrl,
   }, {
     recipient: bin.email,

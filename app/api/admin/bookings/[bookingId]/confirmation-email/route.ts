@@ -25,19 +25,6 @@ function dateLabel(value?: string) {
   return formatDate(value);
 }
 
-function itineraryContent(pkg: Awaited<ReturnType<typeof getPackageById>>) {
-  if (!pkg?.itinerary?.length) return "";
-
-  return pkg.itinerary
-    .map((item) => {
-      const title = [item.day, item.name].filter(Boolean).join(": ");
-      const activities = item.activities.map((activity) => activity.activity).filter(Boolean).join(", ");
-      return [title, activities].filter(Boolean).join(" - ");
-    })
-    .filter(Boolean)
-    .join("; ");
-}
-
 function initialPaymentAmount(booking: FirebaseFirestore.DocumentData, schedule: Array<{ id?: string; amount?: number; status?: string }>) {
   const submittedAmount = numberValue(booking.paymentInfo?.amountSubmitted);
   if (submittedAmount > 0) return submittedAmount;
@@ -88,7 +75,6 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     paymentAmount: formatPeso(paymentAmount),
     remainingBalance: formatPeso(remainingBalance),
     paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
-    itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
     bookingUrl,
   }, {
     recipient,

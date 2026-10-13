@@ -45,19 +45,6 @@ function dateLabel(value?: string) {
   return formatDate(value);
 }
 
-function itineraryContent(pkg: Awaited<ReturnType<typeof getPackageById>>) {
-  if (!pkg?.itinerary?.length) return "";
-
-  return pkg.itinerary
-    .map((item) => {
-      const title = [item.day, item.name].filter(Boolean).join(": ");
-      const activities = item.activities.map((activity) => activity.activity).filter(Boolean).join(", ");
-      return [title, activities].filter(Boolean).join(" - ");
-    })
-    .filter(Boolean)
-    .join("; ");
-}
-
 function paymentAmounts(finalAmount: number, paymentOption: string) {
   if (paymentOption === "full") return { amountSubmitted: finalAmount, remainingBalance: 0 };
   if (paymentOption === "reservation_fee") {
@@ -286,7 +273,6 @@ export async function POST(request: NextRequest) {
     paymentAmount: formatPeso(amountSubmitted),
     remainingBalance: formatPeso(remainingBalance),
     paymentMethod: paymentMethodName,
-    itineraryContent: itineraryContent(pkg) || "Itinerary details will be shared by the Viaje team.",
     bookingUrl,
   }, {
     recipient: String(booking.groupContact.emailAddress || ""),

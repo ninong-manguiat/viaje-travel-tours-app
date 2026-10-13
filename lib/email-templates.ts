@@ -119,8 +119,6 @@ export function BookingReceivedEmail(data: BookingReceivedEmailData) {
     ["Payment Method", data.paymentMethod],
   ];
 
-  if (data.itineraryContent.trim()) summaryRows.push(["Itinerary", data.itineraryContent]);
-
   return layout(
     "Booking Received",
     `We received booking ${data.bookingReference}.`,
