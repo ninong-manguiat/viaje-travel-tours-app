@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminDashboardData, type DashboardModuleSummary } from "@/lib/admin-dashboard";
 import { formatDate } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 const moduleIcons: Record<DashboardModuleSummary["key"], typeof BookOpen> = {
   bookings: BookOpen,
   payments: CreditCard,

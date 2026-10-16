@@ -17,6 +17,7 @@
     "deploy:prod": "node scripts/deploy.mjs prod",
     "validate:r2:qa": "node scripts/validate-r2-env.mjs qa",
     "validate:r2:prod": "node scripts/validate-r2-env.mjs prod",
+    "cleanup:transactional": "node scripts/cleanup-transactional-data.mjs",
     "set-role": "node scripts/set-user-role.mjs",
     "version:minor": "node scripts/bump-version.mjs minor",
     "version:major": "node scripts/bump-version.mjs major"

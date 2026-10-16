@@ -21,6 +21,15 @@ export type ActivityLog = ActivityLogInput & {
   createdAt: string;
 };
 
+const activityEntityCollections = {
+  booking: "bookings",
+  payment: "payments",
+  quotation: "quotations",
+  documentBin: "documentBins",
+} as const;
+
+const RECENT_ACTIVITY_SCAN_LIMIT = 25;
+
 function timestampValue(value: unknown) {
   if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
     return value.toDate().toISOString();
@@ -68,6 +77,28 @@ export async function logActivity(input: ActivityLogInput) {
 
 export async function recentActivityLogs(limit = 10) {
   const { adminDb } = await import("@/lib/firebase-admin");
-  const snapshot = await adminDb.collection("activityLogs").orderBy("createdAt", "desc").limit(limit).get();
-  return snapshot.docs.map((doc) => serializeActivityLog(doc.id, doc.data()));
+  const snapshot = await adminDb.collection("activityLogs")
+    .orderBy("createdAt", "desc")
+    .limit(Math.max(limit, RECENT_ACTIVITY_SCAN_LIMIT))
+    .get();
+  const activities = snapshot.docs.map((doc) => serializeActivityLog(doc.id, doc.data()));
+  const entityRefs = new Map<string, FirebaseFirestore.DocumentReference>();
+
+  for (const activity of activities) {
+    const collection = activityEntityCollections[activity.entityType as keyof typeof activityEntityCollections];
+    if (collection && activity.entityId) {
+      const ref = adminDb.collection(collection).doc(activity.entityId);
+      entityRefs.set(ref.path, ref);
+    }
+  }
+
+  const entitySnapshots = entityRefs.size ? await adminDb.getAll(...entityRefs.values()) : [];
+  const existingEntityPaths = new Set(entitySnapshots.filter((item) => item.exists).map((item) => item.ref.path));
+
+  return activities
+    .filter((activity) => {
+      const collection = activityEntityCollections[activity.entityType as keyof typeof activityEntityCollections];
+      return Boolean(collection && activity.entityId && existingEntityPaths.has(`${collection}/${activity.entityId}`));
+    })
+    .slice(0, limit);
 }

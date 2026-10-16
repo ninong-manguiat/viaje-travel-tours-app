@@ -63,6 +63,8 @@ async function moduleSummary(config: typeof moduleConfigs[number]): Promise<Dash
     countQuery(collection),
     ...config.statuses.map((status) => countQuery(collection.where("status", "==", status))),
   ]);
+  const statuses = config.statuses.map((status, index) => ({ status, count: statusCounts[index] || 0 }));
+  const otherCount = Math.max(0, total - statuses.reduce((sum, item) => sum + item.count, 0));
 
   return {
     key: config.key,
@@ -70,7 +72,7 @@ async function moduleSummary(config: typeof moduleConfigs[number]): Promise<Dash
     description: config.description,
     href: config.href,
     total,
-    statuses: config.statuses.map((status, index) => ({ status, count: statusCounts[index] || 0 })),
+    statuses: otherCount ? [...statuses, { status: "Other", count: otherCount }] : statuses,
   };
 }
 
