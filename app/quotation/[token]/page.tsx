@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { FileDown } from "lucide-react";
+import { QuotationPaymentLinkButton } from "@/components/domain/quotation-payment-link-button";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getQuotationByToken, quotationItemDetail } from "@/lib/quotations";
@@ -14,6 +15,7 @@ function multilineText(value: string) {
 export default async function PublicQuotationPage({ params }: { params: { token: string } }) {
   const quotation = await getQuotationByToken("publicToken", params.token);
   if (!quotation) notFound();
+  const canProceedToPayment = quotation.status === "FINALIZED" && ["UNPAID", "REJECTED"].includes(quotation.paymentStatus);
 
   return (
     <main className="bg-viaje-paper">
@@ -32,6 +34,9 @@ export default async function PublicQuotationPage({ params }: { params: { token:
               <FileDown className="h-4 w-4" />
               Download Quotation
             </a>
+            {canProceedToPayment && (
+              <QuotationPaymentLinkButton publicToken={params.token} paymentToken={quotation.paymentToken} />
+            )}
             <StatusBadge status={quotation.status} />
           </div>
         </div>
