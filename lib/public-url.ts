@@ -18,9 +18,20 @@ function isLocalUrl(value: string) {
   }
 }
 
+function isLegacyPublicUrl(value: string) {
+  try {
+    return new URL(value).hostname.endsWith(".netlify.app");
+  } catch {
+    return false;
+  }
+}
+
 export function publicAppBaseUrl(request?: NextRequest) {
   const configured = cleanBaseUrl(process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL);
-  if (configured) return configured;
+  // Transactional links must never revive the former Netlify delivery URL.
+  // Local hosts remain useful for development; production falls back to the
+  // official public domain when a stale deployment value is present.
+  if (configured && !isLegacyPublicUrl(configured)) return configured;
 
   if (request) {
     const requestOrigin = cleanBaseUrl(`${request.nextUrl.protocol}//${request.nextUrl.host}`);

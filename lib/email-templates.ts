@@ -47,6 +47,14 @@ function rows(items: Array<[string, string | number]>) {
   `;
 }
 
+function documentRequirementsList(requirements: string[]) {
+  return `<ul style="margin:12px 0;padding-left:24px;color:#475467;">${requirements
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => `<li style="margin-bottom:8px;line-height:1.6;">${escapeHtml(item)}</li>`)
+    .join("")}</ul>`;
+}
+
 function cta(label: string, href: string) {
   if (!href) return "";
   return `
@@ -161,8 +169,8 @@ export function DocumentRequestEmail(data: DocumentRequestEmailData) {
       rows([
         ["Document Bin Reference", data.documentBinReference],
         ["Purpose", data.purpose],
-        ["Requested Documents", data.documentRequirements.join(", ")],
       ]),
+      `<p style="margin:18px 0 0;color:#6b778c;font-size:13px;">Requested Documents</p>${documentRequirementsList(data.documentRequirements)}`,
       cta("Upload Documents", data.documentBinUrl),
     ].join("")
   );

@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: { binId: 
     return NextResponse.json({ error: "Document bin has no requested documents." }, { status: 400 });
   }
 
-  const documentBinUrl = publicAppUrl(`/documents/${bin.publicToken}`);
+  const documentBinUrl = publicAppUrl(`/documents/${encodeURIComponent(bin.publicToken)}`, request);
   const result = await sendDocumentRequestEmail({
     clientName: bin.clientName,
     documentBinReference: bin.referenceNumber,

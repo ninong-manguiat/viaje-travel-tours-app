@@ -72,6 +72,7 @@ const requiredFields = {
     "documentBinReference",
     "purpose",
     "documentRequirements",
+    "documentRequirementsHtml",
     "documentBinUrl",
   ],
   PAYMENT_REQUEST: [
@@ -119,6 +120,22 @@ export function formatDateForEmail(value: string | Date) {
 
 export function formatDocumentRequirementsForEmail(requirements: string[]) {
   return requirements.map((item) => item.trim()).filter(Boolean).join("\n");
+}
+
+function escapeEmailHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export function formatDocumentRequirementsHtml(requirements: string[]) {
+  const items = requirements.map((item) => item.trim()).filter(Boolean);
+  return `<ul style="margin:12px 0;padding-left:24px;color:#475467;">${items
+    .map((item) => `<li style="margin-bottom:8px;line-height:1.6;">${escapeEmailHtml(item)}</li>`)
+    .join("")}</ul>`;
 }
 
 function stringifyVariables(data: Record<string, unknown>) {
@@ -192,7 +209,10 @@ export function sendBookingConfirmedEmail(data: BookingConfirmedEmailData, optio
 }
 
 export function sendDocumentRequestEmail(data: DocumentRequestEmailData, options: TemplateSendOptions) {
-  return sendTemplateEmail("DOCUMENT_REQUEST", data, options);
+  return sendTemplateEmail("DOCUMENT_REQUEST", {
+    ...data,
+    documentRequirementsHtml: data.documentRequirementsHtml || formatDocumentRequirementsHtml(data.documentRequirements),
+  }, options);
 }
 
 export function sendPaymentRequestEmail(data: PaymentRequestEmailData, options: TemplateSendOptions) {

@@ -62,6 +62,7 @@ export type DocumentRequestEmailData = {
   documentBinReference: string;
   purpose: string;
   documentRequirements: string[];
+  documentRequirementsHtml?: string;
   documentBinUrl: string;
 };
 
