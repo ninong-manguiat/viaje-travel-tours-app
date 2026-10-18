@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { defaultAirlines, resolvePackageAirline, type Airline } from "@/lib/airlines";
-import { newPackage, packageTypes } from "@/lib/package-content";
+import { newPackage, packageCurrencies, packageTypes } from "@/lib/package-content";
 import type { TravelPackage } from "@/lib/types";
 import { cmsIconOptions, type CmsIconName } from "@/lib/website-content";
 
@@ -33,19 +33,19 @@ function TextField({ label, value, onChange, type = "text" }: { label: string; v
   );
 }
 
-function PriceField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+function PriceField({ value, currency, onChange }: { value: number; currency: TravelPackage["currency"]; onChange: (value: number) => void }) {
   return (
     <label className={fieldClass}>
       <span className={labelClass}>Price</span>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-viaje-soft">₱</span>
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-viaje-soft">{currency === "USD" ? "$" : "PHP"}</span>
         <Input
           type="number"
           min="0"
           step="0.01"
           value={Number.isFinite(value) ? value : 0}
           onChange={(event) => onChange(Number.isFinite(event.target.valueAsNumber) ? event.target.valueAsNumber : 0)}
-          className="pl-8"
+          className="pl-12"
         />
       </div>
     </label>
@@ -460,7 +460,8 @@ export function PackageEditor({ packageId }: { packageId: string }) {
             <TextField label="Country" value={pkg.country} onChange={(value) => update({ country: value })} />
             <SelectField label="Type" value={pkg.type} options={packageTypes} onChange={(value) => update({ type: value as TravelPackage["type"] })} />
             <TextField label="Duration" value={pkg.duration} onChange={(value) => update({ duration: value })} />
-            <PriceField value={pkg.price} onChange={(value) => update({ price: value })} />
+            <SelectField label="Currency" value={pkg.currency} options={packageCurrencies} onChange={(value) => update({ currency: value as TravelPackage["currency"] })} />
+            <PriceField value={pkg.price} currency={pkg.currency} onChange={(value) => update({ price: value })} />
             <AirlineSelect
               value={pkg.airline ?? ""}
               airlineId={pkg.airlineId}

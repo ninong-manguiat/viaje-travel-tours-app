@@ -6,7 +6,7 @@ import Marquee from "react-fast-marquee";
 import { ArrowRight, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TravelPackage } from "@/lib/types";
-import { formatPeso } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 export function HeroPackageCarousel({ items }: { items: TravelPackage[] }) {
   const [ready, setReady] = useState(false);
@@ -32,7 +32,7 @@ export function HeroPackageCarousel({ items }: { items: TravelPackage[] }) {
               </p>
               <h3 className="mt-1 min-h-[52px] font-serif text-xl font-semibold leading-tight text-viaje-navy">{item.title}</h3>
               <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="font-mono text-[12px] font-semibold text-viaje-red">{formatPeso(item.price)}</p>
+                <p className="font-mono text-[12px] font-semibold text-viaje-red">{formatCurrency(item.price, item.currency)}</p>
                 <Link href={`/packages/${item.slug}`}>
                   <Button size="sm" className="h-8 px-3 text-[11px]">
                     View

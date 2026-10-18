@@ -26,6 +26,7 @@ type PaymentLog = {
   paymentMethodId: string;
   paymentMethodReferenceNumber: string;
   referenceNumber: string;
+  currency: "PHP" | "USD";
   amountExpected: number;
   amountSubmitted: number;
   receiptUrl: string;
@@ -69,6 +70,11 @@ function pdfText(value: unknown) {
 
 function formatPdfPeso(value: number) {
   return `PHP ${new Intl.NumberFormat("en-PH", { maximumFractionDigits: 0 }).format(value)}`;
+}
+
+function formatPdfBookingCurrency(value: number, currency: unknown) {
+  const code = currency === "USD" ? "USD" : "PHP";
+  return `${code} ${new Intl.NumberFormat(code === "USD" ? "en-US" : "en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
 }
 
 function quotationDetailText(item: Quotation["items"][number]) {
@@ -157,6 +163,7 @@ function serializePaymentLog(id: string, data: FirestoreData): PaymentLog {
     paymentMethodId: String(data.paymentMethodId || ""),
     paymentMethodReferenceNumber: String(data.paymentMethodReferenceNumber || ""),
     referenceNumber: String(data.referenceNumber || ""),
+    currency: data.currency === "USD" ? "USD" : "PHP",
     amountExpected: numberValue(data.amountExpected),
     amountSubmitted: numberValue(data.amountSubmitted),
     receiptUrl: String(data.receiptUrl || ""),
@@ -209,6 +216,7 @@ function paymentForReceipt(booking: FirestoreData, payments: PaymentLog[]) {
       paymentMethodId: String(booking.paymentInfo?.method || ""),
       paymentMethodReferenceNumber: String(booking.paymentInfo?.paymentMethodReferenceNumber || ""),
       referenceNumber: String(booking.paymentInfo?.transactionReferenceNumber || ""),
+      currency: booking.currency === "USD" ? "USD" as const : "PHP" as const,
       amountExpected: amount,
       amountSubmitted: amount,
       receiptUrl: String(booking.paymentInfo?.receiptUrl || ""),
@@ -380,10 +388,10 @@ export async function itineraryPdfResponse(bookingId: string) {
 
   pdf.section("Booking Amount");
   pdf.keyValues([
-    ["Package Amount", formatPdfPeso(numberValue(booking.bookingSelections?.baseAmount))],
-    ["Add-ons", formatPdfPeso(numberValue(booking.bookingSelections?.addonAmount))],
-    ["Other Charges", formatPdfPeso(numberValue(booking.bookingSelections?.departureAdditionalAmount))],
-    ["Total Booking Amount", formatPdfPeso(totalAmount)],
+    ["Package Amount", formatPdfBookingCurrency(numberValue(booking.bookingSelections?.baseAmount), booking.currency)],
+    ["Add-ons", formatPdfBookingCurrency(numberValue(booking.bookingSelections?.addonAmount), booking.currency)],
+    ["Other Charges", formatPdfBookingCurrency(numberValue(booking.bookingSelections?.departureAdditionalAmount), booking.currency)],
+    ["Total Booking Amount", formatPdfBookingCurrency(totalAmount, booking.currency)],
   ], 2);
 
   return downloadResponse(pdf.toBuffer(), `Itinerary-${String(booking.reference || bookingId)}.pdf`);
@@ -420,9 +428,9 @@ export async function acknowledgementReceiptPdfResponse(bookingId: string) {
     ["Payment Method", method?.bank || payment?.method || String(booking.paymentInfo?.method || "N/A")],
     ["Account Name", method?.accountName || "N/A"],
     ["Account Number", method?.referenceNumber || payment?.paymentMethodReferenceNumber || String(booking.paymentInfo?.paymentMethodReferenceNumber || "N/A")],
-    ["Amount Received", formatPdfPeso(amountReceived)],
-    ["Total Booking Amount", formatPdfPeso(totalAmount)],
-    ["Remaining Balance", formatPdfPeso(remainingBalance)],
+    ["Amount Received", formatPdfBookingCurrency(amountReceived, booking.currency)],
+    ["Total Booking Amount", formatPdfBookingCurrency(totalAmount, booking.currency)],
+    ["Remaining Balance", formatPdfBookingCurrency(remainingBalance, booking.currency)],
   ], 2);
 
   if (payment?.receiptUrl) {
@@ -447,6 +455,7 @@ export async function paymentAcknowledgementReceiptPdfResponse(paymentId: string
   let customerEmail = "N/A";
   let customerContact = "N/A";
   let sourceLabel = "Booking / Quotation Reference";
+  let currency: unknown = payment.currency;
 
   if (payment.bookingId) {
     const bookingDoc = await adminDb.collection("bookings").doc(payment.bookingId).get();
@@ -456,6 +465,7 @@ export async function paymentAcknowledgementReceiptPdfResponse(paymentId: string
     customerEmail = String(booking.groupContact?.emailAddress || "N/A");
     customerContact = String(booking.groupContact?.mobileNumber || "N/A");
     sourceLabel = "Booking Reference";
+    currency = booking.currency;
   } else if (payment.quotationId) {
     const quotation = await getQuotationWithItems(payment.quotationId);
     if (quotation) {
@@ -486,7 +496,7 @@ export async function paymentAcknowledgementReceiptPdfResponse(paymentId: string
 
   pdf.section("Payment Received");
   pdf.keyValues([
-    ["Payment Amount", formatPdfPeso(amountReceived)],
+    ["Payment Amount", formatPdfBookingCurrency(amountReceived, currency)],
     ["Payment Method", method?.bank || payment.method || "N/A"],
     ["Account Name", method?.accountName || "N/A"],
     ["Account Number", method?.referenceNumber || payment.paymentMethodReferenceNumber || "N/A"],

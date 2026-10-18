@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { getPackageById } from "@/lib/package-data";
 import { getPublicBooking } from "@/lib/public-bookings";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function BookingDetailsPage({ params }: { params: { booking
           <Card>
             <CardHeader><CardTitle>Payment Schedule</CardTitle></CardHeader>
             <CardContent>
-              <BookingPaymentScheduleSelector token={params.bookingId} schedule={booking.paymentSchedule} />
+              <BookingPaymentScheduleSelector token={params.bookingId} schedule={booking.paymentSchedule} currency={booking.currency} />
             </CardContent>
           </Card>
 
@@ -79,7 +79,7 @@ export default async function BookingDetailsPage({ params }: { params: { booking
                   {payments.map((payment) => (
                     <TR key={payment.id}>
                       <TD>{payment.paymentName}</TD>
-                      <TD>{formatPeso(payment.amountSubmitted)}</TD>
+                      <TD>{formatCurrency(payment.amountSubmitted, booking.currency)}</TD>
                       <TD>{payment.method || "N/A"}</TD>
                       <TD>{payment.paymentDate ? formatDate(payment.paymentDate) : "N/A"}</TD>
                       <TD><StatusBadge status={payment.status} /></TD>
@@ -95,10 +95,10 @@ export default async function BookingDetailsPage({ params }: { params: { booking
           <CardHeader><CardTitle>Payment</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between gap-4"><span>Total Booking Amount</span><strong className="text-viaje-navy">{formatPeso(summary.totalAmount)}</strong></div>
-              <div className="flex justify-between gap-4"><span>Total Paid</span><strong className="text-viaje-navy">{formatPeso(summary.totalPaid)}</strong></div>
+              <div className="flex justify-between gap-4"><span>Total Booking Amount</span><strong className="text-viaje-navy">{formatCurrency(summary.totalAmount, booking.currency)}</strong></div>
+              <div className="flex justify-between gap-4"><span>Total Paid</span><strong className="text-viaje-navy">{formatCurrency(summary.totalPaid, booking.currency)}</strong></div>
               <div className="border-t border-viaje-line pt-3">
-                <div className="flex justify-between gap-4 text-lg"><span className="font-semibold text-viaje-navy">Remaining Balance</span><strong className="text-viaje-navy">{formatPeso(summary.remainingBalance)}</strong></div>
+                <div className="flex justify-between gap-4 text-lg"><span className="font-semibold text-viaje-navy">Remaining Balance</span><strong className="text-viaje-navy">{formatCurrency(summary.remainingBalance, booking.currency)}</strong></div>
               </div>
             </div>
 

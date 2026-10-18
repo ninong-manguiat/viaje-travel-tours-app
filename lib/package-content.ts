@@ -1,11 +1,12 @@
 import { packages as samplePackages } from "@/lib/sample-data";
 import { defaultAirlines, resolvePackageAirline } from "@/lib/airlines";
-import type { PackageStatus, TravelPackage } from "@/lib/types";
+import type { CurrencyCode, PackageStatus, TravelPackage } from "@/lib/types";
 
 export type PackageAvailabilityStatus = "available" | "limited" | "sold_out";
 
 export const packageStatuses: PackageStatus[] = ["draft", "published", "unpublished"];
 export const packageTypes: TravelPackage["type"][] = ["domestic", "international"];
+export const packageCurrencies: CurrencyCode[] = ["PHP", "USD"];
 export const packageAvailabilityStatuses: PackageAvailabilityStatus[] = ["available", "limited", "sold_out"];
 
 function slugify(value: string) {
@@ -34,6 +35,7 @@ export function newPackage(): TravelPackage {
     coverImageUrl: "",
     galleryUrls: [],
     status: "draft",
+    currency: "PHP",
     price: 0,
     travelDates: [],
     itinerary: [],
@@ -70,6 +72,7 @@ export function normalizePackage(input?: Partial<TravelPackage> | null): TravelP
     description: input?.description ?? fallback.description,
     coverImageUrl: input?.coverImageUrl ?? fallback.coverImageUrl,
     status,
+    currency: input?.currency === "USD" ? "USD" : "PHP",
     price: numberValue(input?.price ?? legacyPricing?.adult),
     galleryUrls: Array.isArray(input?.galleryUrls) ? input.galleryUrls.filter(Boolean) : [],
     travelDates: Array.isArray(input?.travelDates)

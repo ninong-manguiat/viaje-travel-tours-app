@@ -29,6 +29,7 @@ function serializePayment(id: string, data: FirebaseFirestore.DocumentData) {
     paymentName: String(data.paymentName || data.label || ""),
     method: String(data.method || ""),
     referenceNumber: String(data.referenceNumber || ""),
+    currency: data.currency === "USD" ? "USD" : "PHP",
     amountExpected: Number(data.amountExpected || 0),
     amountSubmitted: Number(data.amountSubmitted || 0),
     receiptUrl: String(data.receiptUrl || ""),

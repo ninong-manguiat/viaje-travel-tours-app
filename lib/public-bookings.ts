@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeCurrency } from "@/lib/utils";
 
 export type PublicBookingPayment = {
   id: string;
@@ -6,6 +7,7 @@ export type PublicBookingPayment = {
   paymentName: string;
   method: string;
   referenceNumber: string;
+  currency: "PHP" | "USD";
   amountExpected: number;
   amountSubmitted: number;
   receiptUrl: string;
@@ -21,6 +23,7 @@ export type PublicBooking = {
   packageTitle: string;
   status: string;
   paymentStatus: string;
+  currency: "PHP" | "USD";
   totalAmount: number;
   source: string;
   groupContact: Record<string, unknown>;
@@ -105,6 +108,7 @@ export async function getPublicBooking(identifier: string) {
         paymentName: paymentLogName(payment),
         method: String(payment.method || ""),
         referenceNumber: String(payment.referenceNumber || ""),
+        currency: normalizeCurrency(payment.currency ?? data.currency),
         amountExpected: numberValue(payment.amountExpected),
         amountSubmitted: numberValue(payment.amountSubmitted),
         receiptUrl: String(payment.receiptUrl || ""),
@@ -122,6 +126,7 @@ export async function getPublicBooking(identifier: string) {
     packageTitle: String(data.packageTitle || ""),
     status: String(data.status || ""),
     paymentStatus: String(data.paymentStatus || ""),
+    currency: normalizeCurrency(data.currency),
     totalAmount: numberValue(data.totalAmount ?? data.bookingSelections?.finalAmount),
     source: String(data.source || ""),
     groupContact: data.groupContact && typeof data.groupContact === "object" ? data.groupContact : {},

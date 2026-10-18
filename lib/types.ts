@@ -4,6 +4,7 @@ export type PaymentStatus = "unpaid" | "submitted" | "for_verification" | "parti
 export type DocumentStatus = "required" | "submitted" | "under_review" | "approved" | "needs_replacement";
 export type QuotationStatus = "DRAFT" | "FINALIZED";
 export type PackageStatus = "published" | "draft" | "unpublished";
+export type CurrencyCode = "PHP" | "USD";
 
 export interface UserProfile {
   id: string;
@@ -30,6 +31,7 @@ export interface TravelPackage {
   coverImageUrl: string;
   galleryUrls: string[];
   status: PackageStatus;
+  currency: CurrencyCode;
   price: number;
   travelDates: Array<{
     id: string;
@@ -70,6 +72,7 @@ export interface Booking {
   departureId?: string;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
+  currency: CurrencyCode;
   totalAmount: number;
   amountPaid: number;
   balance: number;
@@ -82,6 +85,7 @@ export interface Transaction {
   bookingId: string;
   clientId?: string;
   type: "full" | "deposit" | "partial";
+  currency: CurrencyCode;
   amount: number;
   dueDate: string;
   status: PaymentStatus;
@@ -95,6 +99,7 @@ export interface Payment {
   clientId?: string;
   method: "gcash" | "maya" | "bank";
   referenceNumber: string;
+  currency: CurrencyCode;
   amountExpected: number;
   amountSubmitted: number;
   receiptUrl?: string;

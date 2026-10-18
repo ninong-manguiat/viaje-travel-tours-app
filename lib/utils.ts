@@ -13,6 +13,21 @@ export function formatPeso(value: number) {
   }).format(value);
 }
 
+export function normalizeCurrency(value: unknown): "PHP" | "USD" {
+  return value === "USD" ? "USD" : "PHP";
+}
+
+export function formatCurrency(value: number, currency: "PHP" | "USD" = "PHP") {
+  const normalized = normalizeCurrency(currency);
+  const amount = Number.isFinite(value) ? value : 0;
+  return new Intl.NumberFormat(normalized === "USD" ? "en-US" : "en-PH", {
+    style: "currency",
+    currency: normalized,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 
 function dateOnlyAsPhilippineNoon(value: string) {

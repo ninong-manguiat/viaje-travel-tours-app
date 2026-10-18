@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { PaymentMethod } from "@/lib/payment-methods";
-import { formatPeso } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.08em] text-viaje-soft";
 const fieldClass = "grid gap-1.5";
@@ -18,6 +18,7 @@ const fieldClass = "grid gap-1.5";
 type BookingPaymentSummary = {
   reference: string;
   packageTitle: string;
+  currency: "PHP" | "USD";
 };
 
 type PaymentScheduleSelection = {
@@ -112,12 +113,12 @@ export function BookingPaymentClient({
           <Card>
             <CardHeader><CardTitle>Amount Due</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-3xl font-bold text-viaje-navy">{formatPeso(remainingBalance)}</p>
+              <p className="text-3xl font-bold text-viaje-navy">{formatCurrency(remainingBalance, booking.currency)}</p>
               <div className="space-y-2 text-sm">
                 {selectedSchedules.map((item) => (
                   <div key={item.id} className="flex justify-between gap-4">
                     <span>{item.label || "Selected payment"}</span>
-                    <strong className="text-viaje-navy">{formatPeso(Number(item.amount || 0))}</strong>
+                    <strong className="text-viaje-navy">{formatCurrency(Number(item.amount || 0), booking.currency)}</strong>
                   </div>
                 ))}
               </div>

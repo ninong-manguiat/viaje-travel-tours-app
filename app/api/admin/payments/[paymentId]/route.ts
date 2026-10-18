@@ -5,7 +5,7 @@ import { emailTemplateSubjects } from "@/lib/email-templates";
 import { getPackageById } from "@/lib/package-data";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingConfirmedEmail, sendSubsequentPaymentEmail } from "@/lib/resend-template-registry";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeCurrency } from "@/lib/utils";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -133,6 +133,7 @@ async function sendBookingConfirmedNotification({
   if (!validEmail(recipient)) return { attempted: false, sent: false, reason: "missing_recipient" };
 
   const reference = String(booking.reference || payment.bookingReference || bookingId);
+  const currency = normalizeCurrency(booking.currency);
   const pkg = booking.packageId ? await getPackageById(String(booking.packageId)).catch(() => null) : null;
   const paymentAmount = numberValue(payment.amountSubmitted || payment.amountExpected);
   const remainingBalance = Math.max(0, totalAmount - amountPaid);
@@ -144,12 +145,12 @@ async function sendBookingConfirmedNotification({
     bookingReference: reference,
     packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
     paymentName: String(payment.paymentName || payment.label || matchedSchedule?.label || "Verified Payment"),
-    paymentAmount: formatPeso(paymentAmount),
+    paymentAmount: formatCurrency(paymentAmount, currency),
     paymentMethod: String(payment.method || "To be verified"),
     paymentDate: payment.paymentDate ? formatDate(String(payment.paymentDate)) : formatDate(new Date().toISOString()),
-    totalAmount: formatPeso(totalAmount),
-    totalPaid: formatPeso(amountPaid),
-    remainingBalance: formatPeso(remainingBalance),
+    totalAmount: formatCurrency(totalAmount, currency),
+    totalPaid: formatCurrency(amountPaid, currency),
+    remainingBalance: formatCurrency(remainingBalance, currency),
     bookingUrl,
   }, {
     recipient,
@@ -194,6 +195,7 @@ async function sendSubsequentPaymentConfirmedNotification({
   if (!validEmail(recipient)) return { attempted: false, sent: false, reason: "missing_recipient" };
 
   const reference = String(booking.reference || payment.bookingReference || bookingId);
+  const currency = normalizeCurrency(booking.currency);
   const remainingBalance = Math.max(0, totalAmount - amountPaid);
   const nextPayment = paymentSchedule.find((item) =>
     !["cancelled", "deleted", "verified", "paid", "for_verification"].includes(normalizedStatus(item.status))
@@ -205,18 +207,18 @@ async function sendSubsequentPaymentConfirmedNotification({
     firstName: String(booking.groupContact?.firstName || "there"),
     bookingReference: reference,
     paymentName: String(payment.paymentName || payment.label || "Verified Payment"),
-    paymentAmount: formatPeso(numberValue(payment.amountSubmitted || payment.amountExpected)),
+    paymentAmount: formatCurrency(numberValue(payment.amountSubmitted || payment.amountExpected), currency),
     paymentMethod: String(payment.method || "To be verified"),
     paymentDate: payment.paymentDate ? formatDate(String(payment.paymentDate)) : formatDate(new Date().toISOString()),
-    totalAmount: formatPeso(totalAmount),
-    totalPaid: formatPeso(amountPaid),
-    remainingBalance: formatPeso(remainingBalance),
+    totalAmount: formatCurrency(totalAmount, currency),
+    totalPaid: formatCurrency(amountPaid, currency),
+    remainingBalance: formatCurrency(remainingBalance, currency),
     bookingUrl,
     isFullyPaid,
     hasNextPayment: Boolean(nextPayment && !isFullyPaid),
     ...(nextPayment && !isFullyPaid ? {
       nextPaymentName: String(nextPayment.label || "Scheduled Payment"),
-      nextPaymentAmount: formatPeso(numberValue(nextPayment.amount)),
+      nextPaymentAmount: formatCurrency(numberValue(nextPayment.amount), currency),
       nextPaymentDueDate: nextPayment.dueDate ? formatDate(String(nextPayment.dueDate)) : "To be advised",
     } : {}),
   }, {
@@ -257,6 +259,7 @@ function serializePayment(id: string, data: FirebaseFirestore.DocumentData) {
     method: String(data.method || ""),
     paymentMethodReferenceNumber: String(data.paymentMethodReferenceNumber || ""),
     referenceNumber: String(data.referenceNumber || ""),
+    currency: data.currency === "USD" ? "USD" : "PHP",
     amountExpected: Number(data.amountExpected || 0),
     amountSubmitted: Number(data.amountSubmitted || 0),
     receiptUrl: String(data.receiptUrl || ""),

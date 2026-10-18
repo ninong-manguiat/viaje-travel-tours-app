@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity-log";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
-import { formatDate, formatPeso, todayDateOnly } from "@/lib/utils";
+import { formatCurrency, formatDate, todayDateOnly } from "@/lib/utils";
 
 function referenceNumber() {
   const date = new Date();
@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
     addonId: selectedAddon?.id ?? "none",
     status: "PENDING FOR VERIFICATION",
     paymentStatus: "for_verification",
+    currency: pkg.currency,
     totalAmount: finalAmount,
     amountPaid: 0,
     balance: finalAmount,
@@ -187,6 +188,7 @@ export async function POST(request: NextRequest) {
     bookingId,
     clientId: null,
     type: paymentOption === "reservation_fee" ? "reservation" : paymentOption === "downpayment_50" ? "deposit" : "full",
+    currency: pkg.currency,
     amount: amountSubmitted,
     dueDate: new Date().toISOString(),
     status: "for_verification",
@@ -207,6 +209,7 @@ export async function POST(request: NextRequest) {
       method: submitted ? body?.payment?.method ?? "" : "",
       paymentMethodReferenceNumber: submitted ? body?.payment?.paymentMethodReferenceNumber ?? "" : "",
       referenceNumber: submitted ? body?.payment?.referenceNumber ?? "" : "",
+      currency: pkg.currency,
       amountExpected: item.amount,
       amountSubmitted: submitted ? amountSubmitted : 0,
       receiptUrl: submitted ? body?.payment?.receiptUrl ?? "" : "",
@@ -271,9 +274,9 @@ export async function POST(request: NextRequest) {
     packageName: pkg.title,
     departureDate: selectedDeparture ? `${dateLabel(selectedDeparture.startDate)} - ${dateLabel(selectedDeparture.endDate)}` : "To be advised",
     guestCount: Array.isArray(booking.guests) ? booking.guests.length : pax,
-    totalAmount: formatPeso(finalAmount),
-    paymentAmount: formatPeso(amountSubmitted),
-    remainingBalance: formatPeso(remainingBalance),
+    totalAmount: formatCurrency(finalAmount, pkg.currency),
+    paymentAmount: formatCurrency(amountSubmitted, pkg.currency),
+    remainingBalance: formatCurrency(remainingBalance, pkg.currency),
     paymentMethod: paymentMethodName,
     bookingUrl,
   }, {

@@ -6,7 +6,7 @@ import type { Route } from "next";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 type PaymentScheduleItem = {
   id?: string;
@@ -23,9 +23,11 @@ function isPayable(status?: string) {
 export function BookingPaymentScheduleSelector({
   token,
   schedule,
+  currency,
 }: {
   token: string;
   schedule: PaymentScheduleItem[];
+  currency: "PHP" | "USD";
 }) {
   const payableIds = useMemo(() => schedule.filter((item) => item.id && isPayable(item.status)).map((item) => String(item.id)), [schedule]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -70,7 +72,7 @@ export function BookingPaymentScheduleSelector({
                   />
                 </TD>
                 <TD>{item.label || `Payment ${index + 1}`}</TD>
-                <TD>{formatPeso(Number(item.amount || 0))}</TD>
+                <TD>{formatCurrency(Number(item.amount || 0), currency)}</TD>
                 <TD>{item.dueDate ? formatDate(item.dueDate) : "N/A"}</TD>
                 <TD><StatusBadge status={item.status || "pending"} /></TD>
               </TR>
@@ -85,14 +87,14 @@ export function BookingPaymentScheduleSelector({
           {selectedItems.length ? selectedItems.map((item) => (
             <div key={item.id} className="flex justify-between gap-4">
               <span>{item.label || "Selected payment"}</span>
-              <strong className="text-viaje-navy">{formatPeso(Number(item.amount || 0))}</strong>
+              <strong className="text-viaje-navy">{formatCurrency(Number(item.amount || 0), currency)}</strong>
             </div>
           )) : (
             <p className="text-viaje-soft">Select one or more payable schedules to continue.</p>
           )}
           <div className="flex justify-between gap-4 border-t border-viaje-line pt-3 text-base">
             <span className="font-semibold text-viaje-navy">Total Selected</span>
-            <strong className="text-viaje-navy">{formatPeso(selectedTotal)}</strong>
+            <strong className="text-viaje-navy">{formatCurrency(selectedTotal, currency)}</strong>
           </div>
         </div>
         {paymentHref ? (

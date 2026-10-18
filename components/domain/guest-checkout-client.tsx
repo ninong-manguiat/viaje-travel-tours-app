@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { isoCountryCodes } from "@/lib/countries";
 import type { PaymentMethod } from "@/lib/payment-methods";
 import type { TravelPackage } from "@/lib/types";
-import { formatDate, formatPeso, todayDateOnly } from "@/lib/utils";
+import { formatCurrency, formatDate, todayDateOnly } from "@/lib/utils";
 
 const steps = [
   { id: "guests", label: "Guests" },
@@ -218,11 +218,11 @@ function SummaryRows({
       </div>
       <div className="flex justify-between gap-4"><span>Selected add-on</span><strong>{selectedAddon?.label ?? "None"}</strong></div>
       <div className="flex justify-between gap-4"><span>Number of guests</span><strong>{pax}</strong></div>
-      <div className="flex justify-between gap-4"><span>Package/base amount</span><strong>{formatPeso(pkg.price)}</strong></div>
-      <div className="flex justify-between gap-4"><span>Departure additional amount</span><strong>{formatPeso(departureAdditionalAmount)}</strong></div>
-      <div className="flex justify-between gap-4"><span>Add-on amount</span><strong>{formatPeso(addonAmount)}</strong></div>
+      <div className="flex justify-between gap-4"><span>Package/base amount</span><strong>{formatCurrency(pkg.price, pkg.currency)}</strong></div>
+      <div className="flex justify-between gap-4"><span>Departure additional amount</span><strong>{formatCurrency(departureAdditionalAmount, pkg.currency)}</strong></div>
+      <div className="flex justify-between gap-4"><span>Add-on amount</span><strong>{formatCurrency(addonAmount, pkg.currency)}</strong></div>
       <div className="border-t border-viaje-line pt-3">
-        <div className="flex justify-between gap-4 text-lg text-viaje-navy"><span className="font-semibold">Final amount</span><strong>{formatPeso(finalAmount)}</strong></div>
+        <div className="flex justify-between gap-4 text-lg text-viaje-navy"><span className="font-semibold">Final amount</span><strong>{formatCurrency(finalAmount, pkg.currency)}</strong></div>
       </div>
     </div>
   );
@@ -537,7 +537,7 @@ export function GuestCheckoutClient({
                     <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "reservation_fee" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                       <CardContent className="p-4">
                         <p className="font-semibold text-viaje-navy">Reservation Fee</p>
-                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(paymentAmounts(finalAmount, "reservation_fee").dueNow)} due now</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatCurrency(paymentAmounts(finalAmount, "reservation_fee").dueNow, pkg.currency)} due now</p>
                       </CardContent>
                     </Card>
                   </button>
@@ -545,7 +545,7 @@ export function GuestCheckoutClient({
                     <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "downpayment_50" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                       <CardContent className="p-4">
                         <p className="font-semibold text-viaje-navy">50% Downpayment</p>
-                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(paymentAmounts(finalAmount, "downpayment_50").dueNow)} due now</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatCurrency(paymentAmounts(finalAmount, "downpayment_50").dueNow, pkg.currency)} due now</p>
                       </CardContent>
                     </Card>
                   </button>
@@ -553,14 +553,14 @@ export function GuestCheckoutClient({
                     <Card className={`h-full rounded-lg transition ${effectivePaymentOption === "full" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                       <CardContent className="p-4">
                         <p className="font-semibold text-viaje-navy">Pay in Full</p>
-                        <p className="mt-1 text-sm text-viaje-soft">{formatPeso(finalAmount)} due now</p>
+                        <p className="mt-1 text-sm text-viaje-soft">{formatCurrency(finalAmount, pkg.currency)} due now</p>
                       </CardContent>
                     </Card>
                   </button>
                 </div>
                 <div className="rounded-lg border border-viaje-line bg-viaje-paper p-4 text-sm">
-                  <div className="flex justify-between gap-4"><span>Amount due now</span><strong className="text-viaje-navy">{formatPeso(dueNow)}</strong></div>
-                  <div className="mt-2 flex justify-between gap-4"><span>Remaining balance</span><strong className="text-viaje-navy">{formatPeso(remainingBalance)}</strong></div>
+                  <div className="flex justify-between gap-4"><span>Amount due now</span><strong className="text-viaje-navy">{formatCurrency(dueNow, pkg.currency)}</strong></div>
+                  <div className="mt-2 flex justify-between gap-4"><span>Remaining balance</span><strong className="text-viaje-navy">{formatCurrency(remainingBalance, pkg.currency)}</strong></div>
                   {["downpayment_50", "reservation_fee"].includes(effectivePaymentOption) && (
                     <p className="mt-3 text-viaje-soft">
                       The remaining balance will stay open for staff payment tracking.

@@ -16,6 +16,7 @@ export const packages: TravelPackage[] = [
       "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=1200&q=80"
     ],
     status: "published",
+    currency: "PHP",
     price: 68900,
     travelDates: [
       { id: "date-jp-oct", startDate: "2026-10-18", endDate: "2026-10-23", additionalAmount: 3000, availabilityStatus: "limited" },
@@ -49,6 +50,7 @@ export const packages: TravelPackage[] = [
       "https://images.unsplash.com/photo-1540202404-a2f29016b523?auto=format&fit=crop&w=1200&q=80"
     ],
     status: "published",
+    currency: "PHP",
     price: 18900,
     travelDates: [
       { id: "date-pal-sep", startDate: "2026-09-12", endDate: "2026-09-15", additionalAmount: 0, availabilityStatus: "available" }
@@ -77,6 +79,7 @@ export const packages: TravelPackage[] = [
     coverImageUrl: "https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=1200&q=80",
     galleryUrls: ["https://images.unsplash.com/photo-1548115184-bc6544d06a58?auto=format&fit=crop&w=1200&q=80"],
     status: "published",
+    currency: "PHP",
     price: 45900,
     travelDates: [
       { id: "date-kr-dec", startDate: "2026-12-03", endDate: "2026-12-07", additionalAmount: 2500, availabilityStatus: "limited" }
@@ -100,12 +103,12 @@ export const departures: Departure[] = [
 ];
 
 export const bookings: Booking[] = [
-  { id: "booking-001", reference: "VJ-2026-0001", clientId: "client-001", packageId: "pkg-japan-autumn", departureId: "dep-jp-oct", status: "awaiting_payment", paymentStatus: "submitted", totalAmount: 137800, amountPaid: 30000, balance: 107800, source: "website", createdAt: "2026-08-10" },
-  { id: "booking-002", reference: "VJ-2026-0002", clientId: "client-001", packageId: "pkg-palawan-escape", departureId: "dep-pal-sep", status: "confirmed", paymentStatus: "paid", totalAmount: 37800, amountPaid: 37800, balance: 0, source: "admin", createdAt: "2026-08-01" }
+  { id: "booking-001", reference: "VJ-2026-0001", clientId: "client-001", packageId: "pkg-japan-autumn", departureId: "dep-jp-oct", status: "awaiting_payment", paymentStatus: "submitted", currency: "PHP", totalAmount: 137800, amountPaid: 30000, balance: 107800, source: "website", createdAt: "2026-08-10" },
+  { id: "booking-002", reference: "VJ-2026-0002", clientId: "client-001", packageId: "pkg-palawan-escape", departureId: "dep-pal-sep", status: "confirmed", paymentStatus: "paid", currency: "PHP", totalAmount: 37800, amountPaid: 37800, balance: 0, source: "admin", createdAt: "2026-08-01" }
 ];
 
 export const payments: Payment[] = [
-  { id: "pay-001", transactionId: "txn-001", bookingId: "booking-001", clientId: "client-001", method: "gcash", referenceNumber: "GC-938201", amountExpected: 30000, amountSubmitted: 30000, paymentDate: "2026-08-12", status: "for_verification" }
+  { id: "pay-001", transactionId: "txn-001", bookingId: "booking-001", clientId: "client-001", method: "gcash", referenceNumber: "GC-938201", currency: "PHP", amountExpected: 30000, amountSubmitted: 30000, paymentDate: "2026-08-12", status: "for_verification" }
 ];
 
 export const quotations: Quotation[] = [

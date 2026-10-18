@@ -3,7 +3,7 @@ import { emailTemplateSubjects } from "@/lib/email-templates";
 import { getPackageById } from "@/lib/package-data";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendBookingConfirmedEmail, sendBookingReceivedEmail } from "@/lib/resend-template-registry";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeCurrency } from "@/lib/utils";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   ]);
   const schedule = Array.isArray(booking.paymentSchedule) ? booking.paymentSchedule : [];
   const reference = String(booking.reference || params.bookingId);
+  const currency = normalizeCurrency(booking.currency);
   const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
   const verifiedPayments: FirebaseFirestore.DocumentData[] = paymentSnapshot.docs
     .map((doc): FirebaseFirestore.DocumentData => ({ id: doc.id, ...(doc.data() as FirebaseFirestore.DocumentData) }))
@@ -94,12 +95,12 @@ export async function POST(request: NextRequest, { params }: { params: { booking
       bookingReference: reference,
       packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
       paymentName: String(latestVerifiedPayment?.paymentName || latestVerifiedPayment?.label || "Verified Payment"),
-      paymentAmount: formatPeso(paymentAmount),
+      paymentAmount: formatCurrency(paymentAmount, currency),
       paymentMethod: String(latestVerifiedPayment?.method || booking.paymentInfo?.method || "To be verified"),
       paymentDate: latestVerifiedPayment?.paymentDate ? formatDate(String(latestVerifiedPayment.paymentDate)) : formatDate(new Date().toISOString()),
-      totalAmount: formatPeso(totalAmount),
-      totalPaid: formatPeso(totalPaid),
-      remainingBalance: formatPeso(remainingBalance),
+      totalAmount: formatCurrency(totalAmount, currency),
+      totalPaid: formatCurrency(totalPaid, currency),
+      remainingBalance: formatCurrency(remainingBalance, currency),
       bookingUrl,
     }, {
       recipient,
@@ -114,9 +115,9 @@ export async function POST(request: NextRequest, { params }: { params: { booking
       packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
       departureDate: dateLabel(departureDate),
       guestCount: Array.isArray(booking.guests) ? booking.guests.length : numberValue(booking.bookingSelections?.pax),
-      totalAmount: formatPeso(totalAmount),
-      paymentAmount: formatPeso(paymentAmount),
-      remainingBalance: formatPeso(remainingBalance),
+      totalAmount: formatCurrency(totalAmount, currency),
+      paymentAmount: formatCurrency(paymentAmount, currency),
+      remainingBalance: formatCurrency(remainingBalance, currency),
       paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
       bookingUrl,
     }, {

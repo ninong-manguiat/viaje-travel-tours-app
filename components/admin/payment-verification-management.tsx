@@ -10,7 +10,7 @@ import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeCurrency } from "@/lib/utils";
 
 type PaymentLog = {
   id: string;
@@ -24,6 +24,7 @@ type PaymentLog = {
   method?: string;
   paymentMethodReferenceNumber?: string;
   referenceNumber?: string;
+  currency?: "PHP" | "USD";
   amountExpected?: number;
   amountSubmitted?: number;
   receiptUrl?: string;
@@ -226,10 +227,10 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                   </TD>
                   <TD className="capitalize">{payment.method || (payment.status === "pending" ? "Pending" : "-")}</TD>
                   <TD>
-                    <div className="font-medium">{formatPeso(Number(payment.amountSubmitted || payment.amountExpected || 0))}</div>
+                    <div className="font-medium">{formatCurrency(Number(payment.amountSubmitted || payment.amountExpected || 0), normalizeCurrency(payment.currency))}</div>
                     <div className="text-xs text-muted-foreground">{payment.paymentDate ? formatDate(payment.paymentDate) : "-"}</div>
                   </TD>
-                  <TD>{formatPeso(Number(payment.amountExpected || 0))}</TD>
+                  <TD>{formatCurrency(Number(payment.amountExpected || 0), normalizeCurrency(payment.currency))}</TD>
                   <TD><StatusBadge status={payment.status || "for_verification"} /></TD>
                   <TD className="whitespace-nowrap">
                     <div className="flex flex-nowrap justify-end gap-2">
@@ -283,8 +284,8 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                       <p><span className="text-viaje-soft">Source</span><br /><strong className="text-viaje-navy">{selectedPayment.source || (selectedPayment.quotationId ? "QUOTATION" : "BOOKING")}</strong></p>
                       <p><span className="text-viaje-soft">Booking / Quotation Reference</span><br /><strong className="text-viaje-navy">{selectedPayment.bookingReference || selectedPayment.quotationReference || selectedPayment.bookingId || selectedPayment.quotationId || "N/A"}</strong></p>
                       <p><span className="text-viaje-soft">Payment Name</span><br /><strong className="text-viaje-navy">{selectedPayment.paymentName || "N/A"}</strong></p>
-                      <p><span className="text-viaje-soft">Payment Amount</span><br /><strong className="text-viaje-navy">{formatPeso(Number(selectedPayment.amountSubmitted || selectedPayment.amountExpected || 0))}</strong></p>
-                      <p><span className="text-viaje-soft">Expected Amount</span><br /><strong className="text-viaje-navy">{formatPeso(Number(selectedPayment.amountExpected || 0))}</strong></p>
+                      <p><span className="text-viaje-soft">Payment Amount</span><br /><strong className="text-viaje-navy">{formatCurrency(Number(selectedPayment.amountSubmitted || selectedPayment.amountExpected || 0), normalizeCurrency(selectedPayment.currency))}</strong></p>
+                      <p><span className="text-viaje-soft">Expected Amount</span><br /><strong className="text-viaje-navy">{formatCurrency(Number(selectedPayment.amountExpected || 0), normalizeCurrency(selectedPayment.currency))}</strong></p>
                       <p><span className="text-viaje-soft">Payment Method</span><br /><strong className="text-viaje-navy">{selectedPayment.method || "Pending submission"}</strong></p>
                       <p><span className="text-viaje-soft">Transaction Date</span><br /><strong className="text-viaje-navy">{selectedPayment.paymentDate ? formatDate(selectedPayment.paymentDate) : "N/A"}</strong></p>
                       <p><span className="text-viaje-soft">Payment Status</span><br /><StatusBadge status={selectedPayment.status || "pending"} /></p>

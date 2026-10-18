@@ -50,7 +50,7 @@ import type { CmsIconName } from "@/lib/website-content";
 import { StatusBadge } from "@/components/domain/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 const iconMap: Partial<Record<CmsIconName, LucideIcon>> = {
   Anchor,
@@ -208,7 +208,7 @@ export function PackageDetailClient({ pkg, airline }: { pkg: TravelPackage; airl
                       <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                         <div>
                           <p className="font-semibold">{formatDate(dep.startDate)} - {formatDate(dep.endDate)}</p>
-                          <p className="text-sm text-muted-foreground">Additional amount {formatPeso(dep.additionalAmount)}</p>
+                          <p className="text-sm text-muted-foreground">Additional amount {formatCurrency(dep.additionalAmount, pkg.currency)}</p>
                         </div>
                         <StatusBadge status={dep.availabilityStatus} />
                       </CardContent>
@@ -233,7 +233,7 @@ export function PackageDetailClient({ pkg, airline }: { pkg: TravelPackage; airl
                   <Card className={`rounded-lg transition ${selectedAddonId === "none" ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                     <CardContent className="flex items-center justify-between gap-4 p-4">
                       <span className="font-medium text-viaje-navy">None</span>
-                      <strong>{formatPeso(0)}</strong>
+                      <strong>{formatCurrency(0, pkg.currency)}</strong>
                     </CardContent>
                   </Card>
                 </button>
@@ -244,7 +244,7 @@ export function PackageDetailClient({ pkg, airline }: { pkg: TravelPackage; airl
                       <Card className={`rounded-lg transition ${selected ? "border-viaje-red ring-2 ring-viaje-red/20" : ""}`}>
                         <CardContent className="flex items-center justify-between gap-4 p-4">
                       <span className="font-medium text-viaje-navy">{addon.label}</span>
-                      <strong>{formatPeso(addon.price)}</strong>
+                      <strong>{formatCurrency(addon.price, pkg.currency)}</strong>
                         </CardContent>
                       </Card>
                     </button>
@@ -342,13 +342,13 @@ export function PackageDetailClient({ pkg, airline }: { pkg: TravelPackage; airl
               <CardTitle>Booking Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between"><span>Base package price</span><strong>{formatPeso(pkg.price)}</strong></div>
+              <div className="flex justify-between"><span>Base package price</span><strong>{formatCurrency(pkg.price, pkg.currency)}</strong></div>
               <div className="flex justify-between"><span>Selected departure</span><span>{selectedDeparture ? formatDate(selectedDeparture.startDate) : "TBD"}</span></div>
-              {additionalAmount > 0 && <div className="flex justify-between"><span>Departure additional amount</span><strong>{formatPeso(additionalAmount)}</strong></div>}
-              {selectedAddon && <div className="flex justify-between"><span>Selected add-on</span><strong>{formatPeso(addonAmount)}</strong></div>}
+              {additionalAmount > 0 && <div className="flex justify-between"><span>Departure additional amount</span><strong>{formatCurrency(additionalAmount, pkg.currency)}</strong></div>}
+              {selectedAddon && <div className="flex justify-between"><span>Selected add-on</span><strong>{formatCurrency(addonAmount, pkg.currency)}</strong></div>}
               <div className="flex justify-between"><span>Pax</span><strong>x {pax}</strong></div>
               <div className="border-t border-viaje-line pt-4">
-                <div className="flex justify-between text-lg"><span className="font-semibold">Final Amount</span><strong>{formatPeso(finalAmount)}</strong></div>
+                <div className="flex justify-between text-lg"><span className="font-semibold">Final Amount</span><strong>{formatCurrency(finalAmount, pkg.currency)}</strong></div>
                 <br/>
               </div>
               {canBook ? (

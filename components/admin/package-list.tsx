@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import type { TravelPackage } from "@/lib/types";
-import { formatPeso } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 export function PackageList() {
   const [packages, setPackages] = useState<TravelPackage[]>([]);
@@ -99,7 +99,7 @@ export function PackageList() {
                   </TD>
                   <TD>{pkg.title}</TD>
                   <TD>{pkg.destination}</TD>
-                  <TD>{formatPeso(pkg.price)}</TD>
+                  <TD>{formatCurrency(pkg.price, pkg.currency)}</TD>
                   <TD>{pkg.travelDates.length}</TD>
                   <TD><StatusBadge status={pkg.status} /></TD>
                   <TD>

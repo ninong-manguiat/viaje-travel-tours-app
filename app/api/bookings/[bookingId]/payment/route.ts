@@ -78,6 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: { booking
       paymentMethodId,
       paymentMethodReferenceNumber,
       referenceNumber: "",
+      currency: booking.currency,
       amountExpected: Number(scheduleItem.amount || 0),
       amountSubmitted: Number(scheduleItem.amount || 0),
       receiptUrl,

@@ -13,7 +13,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { DocumentBinProgressIndicator } from "@/components/admin/document-bin-management";
 import { documentBinProgress, documentName, type DocumentBin } from "@/lib/document-bins";
 import { publicAppUrl } from "@/lib/public-url";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeCurrency } from "@/lib/utils";
 
 type PaymentScheduleItem = {
   id: string;
@@ -30,6 +30,7 @@ type BookingPaymentLog = {
   paymentName?: string;
   method?: string;
   referenceNumber?: string;
+  currency?: "PHP" | "USD";
   amountExpected?: number;
   amountSubmitted?: number;
   receiptUrl?: string;
@@ -48,6 +49,7 @@ type AdminBooking = {
   addonId?: string;
   status?: string;
   paymentStatus?: string;
+  currency?: "PHP" | "USD";
   totalAmount?: number;
   amountPaid?: number;
   balance?: number;
@@ -775,7 +777,7 @@ export function BookingManagement() {
                             <TD>{item.label}</TD>
 
                             <TD>
-                              {formatPeso(Number(item.amount || 0))}
+                              {formatCurrency(Number(item.amount || 0), normalizeCurrency(selected.currency))}
                             </TD>
 
                             <TD>{dateLabel(item.dueDate)}</TD>
@@ -883,17 +885,17 @@ export function BookingManagement() {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
                   <span>Total Booking Amount</span>
-                  <strong>{formatPeso(totalAmount)}</strong>
+                  <strong>{formatCurrency(totalAmount, normalizeCurrency(selected.currency))}</strong>
                 </div>
 
                 <div className="flex justify-between gap-4">
                   <span>Total Paid</span>
-                  <strong>{formatPeso(totalPaid)}</strong>
+                  <strong>{formatCurrency(totalPaid, normalizeCurrency(selected.currency))}</strong>
                 </div>
 
                 <div className="flex justify-between gap-4">
                   <span>Remaining Balance</span>
-                  <strong>{formatPeso(remainingBalance)}</strong>
+                  <strong>{formatCurrency(remainingBalance, normalizeCurrency(selected.currency))}</strong>
                 </div>
 
                 <div className="flex justify-between gap-4">

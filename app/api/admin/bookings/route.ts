@@ -25,6 +25,7 @@ function serializeBooking(id: string, data: FirebaseFirestore.DocumentData) {
   return {
     ...data,
     id,
+    currency: data.currency === "USD" ? "USD" : "PHP",
     createdAt: timestampValue(data.createdAt),
     updatedAt: timestampValue(data.updatedAt),
   };

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { publicAppUrl } from "@/lib/public-url";
 import { sendPaymentRequestEmail } from "@/lib/resend-template-registry";
-import { formatDate, formatPeso } from "@/lib/utils";
+import { formatCurrency, formatDate, normalizeCurrency } from "@/lib/utils";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,13 +49,14 @@ export async function POST(request: NextRequest, { params }: { params: { booking
   if (!emailPattern.test(recipient)) return NextResponse.json({ error: "Booking contact email is missing or invalid." }, { status: 400 });
 
   const reference = String(booking.reference || params.bookingId);
+  const currency = normalizeCurrency(booking.currency);
   const paymentUrl = publicAppUrl(`/book/${encodeURIComponent(reference)}/payment?schedules=${encodeURIComponent(scheduleItemId)}`);
   const result = await sendPaymentRequestEmail({
     firstName: String(booking.groupContact?.firstName || "there"),
     bookingReference: reference,
     packageName: String(booking.packageTitle || booking.packageSlug || booking.packageId || "Tour Package"),
     paymentName: String(scheduleItem.label || "Scheduled Payment"),
-    amountDue: formatPeso(Number(scheduleItem.amount || 0)),
+    amountDue: formatCurrency(Number(scheduleItem.amount || 0), currency),
     dueDate: scheduleItem.dueDate ? formatDate(String(scheduleItem.dueDate)) : "To be advised",
     paymentUrl,
   }, {

@@ -94,6 +94,7 @@ function serializeBooking(id: string, data: FirebaseFirestore.DocumentData) {
   return {
     ...data,
     id,
+    currency: data.currency === "USD" ? "USD" : "PHP",
     createdAt: timestampValue(data.createdAt),
     updatedAt: timestampValue(data.updatedAt),
   };
@@ -107,6 +108,7 @@ function serializePaymentLog(id: string, data: FirebaseFirestore.DocumentData) {
     paymentName: String(data.paymentName || data.label || ""),
     method: String(data.method || ""),
     referenceNumber: String(data.referenceNumber || ""),
+    currency: data.currency === "USD" ? "USD" : "PHP",
     amountExpected: Number(data.amountExpected || 0),
     amountSubmitted: Number(data.amountSubmitted || 0),
     receiptUrl: String(data.receiptUrl || ""),

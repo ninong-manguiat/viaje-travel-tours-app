@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatPeso } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import type { TravelPackage } from "@/lib/types";
 
 export function PackageCard({ item }: { item: TravelPackage }) {
@@ -39,7 +39,7 @@ export function PackageCard({ item }: { item: TravelPackage }) {
       </div>
       <div className="flex items-center justify-between border-t border-viaje-line bg-viaje-paperAlt px-5 py-4">
         <p className="font-serif text-[16.5px] font-semibold text-viaje-red">
-          {formatPeso(item.price)}
+          {formatCurrency(item.price, item.currency)}
           <small className="ml-1 font-sans text-[11px] font-medium text-viaje-soft">/ person</small>
         </p>
         <Link href={`/packages/${item.slug}`}>
