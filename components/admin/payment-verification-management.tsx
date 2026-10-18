@@ -196,7 +196,13 @@ export function PaymentVerificationManagement({ initialPayments = [] }: { initia
                       <div className="grid gap-1">
                         <span className="font-semibold text-viaje-navy">Quotation</span>
                         {payment.quotationId ? (
-                          <Link href="/admin/quotations" className="text-xs font-semibold text-viaje-red hover:underline" onClick={(event) => event.stopPropagation()}>{payment.quotationReference}</Link>
+                          <Link
+                            href={`/admin/quotations?quotationId=${encodeURIComponent(payment.quotationId)}`}
+                            className="text-xs font-semibold text-viaje-red hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {payment.quotationReference || payment.quotationId}
+                          </Link>
                         ) : (
                           <span className="text-xs text-viaje-soft">{payment.quotationReference}</span>
                         )}

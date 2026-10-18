@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { Route } from "next";
 import { Copy, ExternalLink, FileDown, Mail, Plus, ReceiptText, Save, Send, Trash2, X } from "lucide-react";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
@@ -113,6 +115,8 @@ function itemName(item: QuotationItem) {
 }
 
 export function QuotationBuilderManagement() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [editing, setEditing] = useState<Quotation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,19 +202,41 @@ export function QuotationBuilderManagement() {
     setEditing({ ...emptyQuotation, items: [newItem(0)] });
   }
 
-  async function startEdit(quotation: Quotation) {
+  const deepLinkedQuotationId = searchParams.get("quotationId") || "";
+
+  useEffect(() => {
+    if (!deepLinkedQuotationId) {
+      if (editing?.id) setEditing(null);
+      return;
+    }
+    if (editing?.id === deepLinkedQuotationId) return;
+
+    let active = true;
     setStatus("");
     setModalError("");
     setQuotationTouched({});
     setQuotationItemTouched({});
     setQuotationSubmitted(false);
-    const response = await fetch(`/api/admin/quotations/${quotation.id}`);
-    if (!response.ok) {
-      setStatus("Unable to load quotation details.");
-      return;
-    }
-    const data = await response.json();
-    setEditing(data.quotation);
+    fetch(`/api/admin/quotations/${encodeURIComponent(deepLinkedQuotationId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load quotation")))
+      .then((data) => {
+        if (!active) return;
+        setEditing(data.quotation);
+        setQuotations((current) => current.map((quotation) => quotation.id === data.quotation.id ? data.quotation : quotation));
+      })
+      .catch(() => {
+        if (active) setStatus("Unable to load quotation details.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [deepLinkedQuotationId, editing?.id]);
+
+  function startEdit(quotation: Quotation) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("quotationId", quotation.id);
+    router.push(`/admin/quotations?${params.toString()}`);
   }
 
   function closeModal() {
@@ -219,6 +245,10 @@ export function QuotationBuilderManagement() {
     setQuotationTouched({});
     setQuotationItemTouched({});
     setQuotationSubmitted(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("quotationId");
+    const query = params.toString();
+    router.replace(`/admin/quotations${query ? `?${query}` : ""}` as Route);
   }
 
   function updateEditing(values: Partial<Quotation>) {

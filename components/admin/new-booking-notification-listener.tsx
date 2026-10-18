@@ -149,7 +149,7 @@ export function NewBookingNotificationListener() {
                   className="mt-3"
                   onClick={() => {
                     dismiss(notification.toastId);
-                    router.push("/admin/bookings");
+                    router.push(`/admin/bookings?bookingId=${encodeURIComponent(notification.id)}`);
                   }}
                 >
                   View Booking

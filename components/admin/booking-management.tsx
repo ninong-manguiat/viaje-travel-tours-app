@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { Route } from "next";
 import { Copy, ExternalLink, FileDown, FileText, Mail, Plus, Trash2, X } from "lucide-react";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { StatusBadge } from "@/components/domain/status-badge";
@@ -195,6 +197,8 @@ function bookingStatusActions(status?: string) {
 }
 
 export function BookingManagement() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [selected, setSelected] = useState<AdminBooking | null>(null);
   const [documentBin, setDocumentBin] = useState<DocumentBin | null>(null);
@@ -285,23 +289,29 @@ export function BookingManagement() {
     setPage(1);
   }
 
+  const deepLinkedBookingId = searchParams.get("bookingId") || "";
+
   useEffect(() => {
-    if (loading || selected) return;
-    const params = new URLSearchParams(window.location.search);
-    const bookingId = params.get("bookingId") || "";
-    if (!bookingId) return;
+    if (!deepLinkedBookingId) return;
+    if (selected?.id === deepLinkedBookingId && Array.isArray(selected.paymentLogs)) return;
 
-    const existing = bookings.find((booking) => booking.id === bookingId);
-    if (existing) {
-      setSelected(existing);
-      return;
-    }
-
-    fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`)
+    let active = true;
+    setSelected((current) => current?.id === deepLinkedBookingId ? current : null);
+    fetch(`/api/admin/bookings/${encodeURIComponent(deepLinkedBookingId)}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load booking")))
-      .then((data) => setSelected(data.booking))
-      .catch(() => setStatus("Unable to load linked booking."));
-  }, [bookings, loading, selected]);
+      .then((data) => {
+        if (!active) return;
+        setSelected(data.booking);
+        setBookings((current) => current.map((booking) => booking.id === data.booking.id ? { ...booking, ...data.booking } : booking));
+      })
+      .catch(() => {
+        if (active) setStatus("Unable to load linked booking.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [deepLinkedBookingId, selected?.id, selected?.paymentLogs]);
 
   useEffect(() => {
     if (!selected?.documentBinId) {
@@ -329,14 +339,9 @@ export function BookingManagement() {
   const hasUnsavedDetails = Boolean(selected && editDraft && JSON.stringify(editDraft) !== JSON.stringify(bookingEditDraft(selected)));
 
   function openBooking(booking: AdminBooking) {
-    setSelected(booking);
-    const url = new URL(window.location.href);
-    url.searchParams.set("bookingId", booking.id);
-    window.history.pushState(null, "", url.toString());
-    fetch(`/api/admin/bookings/${encodeURIComponent(booking.id)}`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load booking")))
-      .then((data) => setSelected(data.booking))
-      .catch(() => setStatus("Unable to load booking payment details."));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("bookingId", booking.id);
+    router.push(`/admin/bookings?${params.toString()}`);
   }
 
   function closeBooking() {
@@ -345,9 +350,10 @@ export function BookingManagement() {
     setDocumentBin(null);
     setEditing(false);
     setEditDraft(null);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("bookingId");
-    window.history.pushState(null, "", url.toString());
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("bookingId");
+    const query = params.toString();
+    router.replace(`/admin/bookings${query ? `?${query}` : ""}` as Route);
   }
 
   function startEditing() {
