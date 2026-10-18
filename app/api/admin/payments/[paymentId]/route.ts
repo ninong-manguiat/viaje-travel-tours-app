@@ -4,7 +4,7 @@ import { logActivity } from "@/lib/activity-log";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { getPackageById } from "@/lib/package-data";
 import { publicAppUrl } from "@/lib/public-url";
-import { sendBookingConfirmedEmail } from "@/lib/resend-template-registry";
+import { sendBookingConfirmedEmail, sendSubsequentPaymentEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 function unauthorized() {
@@ -83,6 +83,35 @@ function validEmail(value: unknown) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function isInitialPayment(
+  booking: FirebaseFirestore.DocumentData,
+  payment: FirebaseFirestore.DocumentData,
+  paymentId: string,
+  paymentSchedule: Array<{ id?: string }>
+) {
+  const initialPaymentId = String(booking.initialPaymentId || "");
+  if (initialPaymentId) return initialPaymentId === paymentId;
+
+  const initialScheduleId = String(booking.initialPaymentScheduleId || paymentSchedule[0]?.id || "");
+  return initialScheduleId !== "" && initialScheduleId === String(payment.paymentScheduleId || payment.scheduleItemId || "");
+}
+
+async function claimVerificationEmail(
+  paymentRef: FirebaseFirestore.DocumentReference,
+  emailType: "BOOKING_CONFIRMED" | "SUBSEQUENT_PAYMENT_REQUEST"
+) {
+  const { adminDb } = await import("@/lib/firebase-admin");
+  return adminDb.runTransaction(async (transaction) => {
+    const current = await transaction.get(paymentRef);
+    if (!current.exists || current.data()?.verificationEmailType) return false;
+    transaction.set(paymentRef, {
+      verificationEmailType: emailType,
+      verificationEmailAttemptedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
+
 async function sendBookingConfirmedNotification({
   request,
   bookingId,
@@ -136,6 +165,77 @@ async function sendBookingConfirmedNotification({
   }).catch((error) => ({
     ok: false as const,
     error: error instanceof Error ? error.message : "Unable to send booking confirmation email.",
+    logId: undefined,
+  }));
+
+  return result.ok
+    ? { attempted: true, sent: true, logId: result.logId, resendEmailId: result.resendEmailId }
+    : { attempted: true, sent: false, reason: result.error, logId: result.logId };
+}
+
+async function sendSubsequentPaymentConfirmedNotification({
+  request,
+  bookingId,
+  booking,
+  payment,
+  paymentSchedule,
+  amountPaid,
+  totalAmount,
+}: {
+  request: NextRequest;
+  bookingId: string;
+  booking: FirebaseFirestore.DocumentData;
+  payment: FirebaseFirestore.DocumentData;
+  paymentSchedule: Array<{ id?: string; label?: string; amount?: number; dueDate?: string; status?: string }>;
+  amountPaid: number;
+  totalAmount: number;
+}) {
+  const recipient = String(booking.groupContact?.emailAddress || "").trim();
+  if (!validEmail(recipient)) return { attempted: false, sent: false, reason: "missing_recipient" };
+
+  const reference = String(booking.reference || payment.bookingReference || bookingId);
+  const remainingBalance = Math.max(0, totalAmount - amountPaid);
+  const nextPayment = paymentSchedule.find((item) =>
+    !["cancelled", "deleted", "verified", "paid", "for_verification"].includes(normalizedStatus(item.status))
+  );
+  const isFullyPaid = Math.round(remainingBalance * 100) <= 0;
+  const bookingUrl = publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request);
+
+  const result = await sendSubsequentPaymentEmail({
+    firstName: String(booking.groupContact?.firstName || "there"),
+    bookingReference: reference,
+    paymentName: String(payment.paymentName || payment.label || "Verified Payment"),
+    paymentAmount: formatPeso(numberValue(payment.amountSubmitted || payment.amountExpected)),
+    paymentMethod: String(payment.method || "To be verified"),
+    paymentDate: payment.paymentDate ? formatDate(String(payment.paymentDate)) : formatDate(new Date().toISOString()),
+    totalAmount: formatPeso(totalAmount),
+    totalPaid: formatPeso(amountPaid),
+    remainingBalance: formatPeso(remainingBalance),
+    bookingUrl,
+    isFullyPaid,
+    hasNextPayment: Boolean(nextPayment && !isFullyPaid),
+    ...(nextPayment && !isFullyPaid ? {
+      nextPaymentName: String(nextPayment.label || "Scheduled Payment"),
+      nextPaymentAmount: formatPeso(numberValue(nextPayment.amount)),
+      nextPaymentDueDate: nextPayment.dueDate ? formatDate(String(nextPayment.dueDate)) : "To be advised",
+    } : {}),
+  }, {
+    recipient,
+    subject: `${emailTemplateSubjects.SUBSEQUENT_PAYMENT_REQUEST} - ${reference}`,
+    relatedEntityType: "payment",
+    relatedEntityId: String(payment.id || ""),
+    relatedReference: reference,
+    metadata: {
+      bookingId,
+      paymentId: String(payment.id || ""),
+      paymentScheduleId: String(payment.paymentScheduleId || payment.scheduleItemId || ""),
+      bookingUrl,
+      isFullyPaid,
+      hasNextPayment: Boolean(nextPayment && !isFullyPaid),
+    },
+  }).catch((error) => ({
+    ok: false as const,
+    error: error instanceof Error ? error.message : "Unable to send subsequent payment confirmation email.",
     logId: undefined,
   }));
 
@@ -233,16 +333,41 @@ export async function PATCH(request: NextRequest, { params }: { params: { paymen
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      if (status === "verified" && booking.status !== "CONFIRMED" && bookingStatus === "CONFIRMED") {
-        emailResult = await sendBookingConfirmedNotification({
-          request,
-          bookingId: String(payment.bookingId),
-          booking,
-          payment: { ...payment, id: params.paymentId },
-          paymentSchedule,
-          amountPaid,
-          totalAmount,
-        });
+      if (status === "verified") {
+        const verifiedPayment = { ...payment, id: params.paymentId, status };
+        const initialPayment = isInitialPayment(booking, verifiedPayment, params.paymentId, paymentSchedule);
+        const emailType = initialPayment ? "BOOKING_CONFIRMED" : "SUBSEQUENT_PAYMENT_REQUEST";
+        const shouldSend = initialPayment
+          ? booking.status !== "CONFIRMED" && bookingStatus === "CONFIRMED"
+          : true;
+
+        if (shouldSend && await claimVerificationEmail(paymentRef, emailType)) {
+          emailResult = initialPayment
+            ? await sendBookingConfirmedNotification({
+              request,
+              bookingId: String(payment.bookingId),
+              booking,
+              payment: verifiedPayment,
+              paymentSchedule,
+              amountPaid,
+              totalAmount,
+            })
+            : await sendSubsequentPaymentConfirmedNotification({
+              request,
+              bookingId: String(payment.bookingId),
+              booking,
+              payment: verifiedPayment,
+              paymentSchedule,
+              amountPaid,
+              totalAmount,
+            });
+
+          await paymentRef.set({
+            verificationEmailSentAt: emailResult.sent ? FieldValue.serverTimestamp() : null,
+            verificationEmailLogId: emailResult.logId || "",
+            verificationEmailError: emailResult.sent ? "" : emailResult.reason || "Unable to send verification email.",
+          }, { merge: true });
+        }
       }
     }
   }

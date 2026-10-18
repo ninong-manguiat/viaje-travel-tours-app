@@ -102,6 +102,7 @@ function sampleHtml(request: NextRequest, emailType: TransactionalEmailType) {
     totalPaid: "PHP 138,000.00",
     remainingBalance: "PHP 0.00",
     bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
+    hasNextPayment: false,
     isFullyPaid: true,
   });
 }
@@ -180,6 +181,7 @@ function sendSampleTemplate(request: NextRequest, emailType: TransactionalEmailT
     totalPaid: "PHP 138,000.00",
     remainingBalance: "PHP 0.00",
     bookingUrl: appUrl(request, "/dashboard/bookings/VIAJE-TEST-001"),
+    hasNextPayment: false,
     isFullyPaid: true,
   }, options);
 }

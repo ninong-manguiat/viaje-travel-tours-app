@@ -89,6 +89,7 @@ export type SubsequentPaymentRequestEmailData = {
   nextPaymentName?: string;
   nextPaymentAmount?: string;
   nextPaymentDueDate?: string;
+  hasNextPayment: boolean;
   isFullyPaid: boolean;
 };
 

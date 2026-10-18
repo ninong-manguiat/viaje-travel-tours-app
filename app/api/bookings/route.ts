@@ -167,6 +167,8 @@ export async function POST(request: NextRequest) {
       paymentDate: body?.payment?.paymentDate ?? todayDateOnly(),
     },
     paymentSchedule: schedule,
+    initialPaymentId: paymentId,
+    initialPaymentScheduleId: schedule[0]?.id ?? "",
     bookingSelections: {
       pax,
       baseAmount,

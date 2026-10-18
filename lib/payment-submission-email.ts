@@ -59,6 +59,7 @@ export async function sendPaymentSubmissionEmail({
     totalPaid: formatPeso(totalPaid),
     remainingBalance: formatPeso(remainingBalance),
     bookingUrl: publicUrl,
+    hasNextPayment: false,
     isFullyPaid: false,
   }, {
     recipient: cleanRecipient,

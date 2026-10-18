@@ -94,6 +94,7 @@ const requiredFields = {
     "totalPaid",
     "remainingBalance",
     "bookingUrl",
+    "hasNextPayment",
     "isFullyPaid",
   ],
   QUOTATION: [
@@ -124,7 +125,9 @@ function stringifyVariables(data: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => {
       if (Array.isArray(value)) return [key, formatDocumentRequirementsForEmail(value.map(String))];
-      if (typeof value === "boolean") return [key, value ? "true" : "false"];
+      // Resend template conditionals receive strings. An empty value is falsey,
+      // while the non-empty string "false" would incorrectly satisfy {{#if ...}}.
+      if (typeof value === "boolean") return [key, value ? "true" : ""];
       return [key, typeof value === "number" ? value : String(value ?? "")];
     })
   ) as Record<string, string | number>;

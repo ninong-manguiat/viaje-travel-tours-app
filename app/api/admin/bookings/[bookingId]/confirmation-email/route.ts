@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { emailTemplateSubjects } from "@/lib/email-templates";
 import { getPackageById } from "@/lib/package-data";
 import { publicAppUrl } from "@/lib/public-url";
-import { sendBookingReceivedEmail } from "@/lib/resend-template-registry";
+import { sendBookingConfirmedEmail, sendBookingReceivedEmail } from "@/lib/resend-template-registry";
 import { formatDate, formatPeso } from "@/lib/utils";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,6 +33,18 @@ function initialPaymentAmount(booking: FirebaseFirestore.DocumentData, schedule:
   return numberValue(initialPayment?.amount ?? booking.amountPaid);
 }
 
+function normalizedStatus(value: unknown) {
+  return String(value || "").toLowerCase();
+}
+
+function paymentTimestamp(value: unknown) {
+  if (value instanceof Date) return value.getTime();
+  if (value && typeof value === "object" && "toMillis" in value && typeof value.toMillis === "function") return value.toMillis();
+  if (value && typeof value === "object" && "seconds" in value && typeof value.seconds === "number") return value.seconds * 1000;
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function safeSendError(message: string) {
   const normalized = message.toLowerCase();
   if (normalized.includes("resend_api_key")) return "Resend API key is not configured on the server.";
@@ -56,33 +68,64 @@ export async function POST(request: NextRequest, { params }: { params: { booking
     return NextResponse.json({ error: "Booking contact email is missing or invalid." }, { status: 400 });
   }
 
-  const pkg = booking.packageId ? await getPackageById(String(booking.packageId)) : null;
+  const [pkg, paymentSnapshot] = await Promise.all([
+    booking.packageId ? getPackageById(String(booking.packageId)) : Promise.resolve(null),
+    adminDb.collection("payments").where("bookingId", "==", params.bookingId).get(),
+  ]);
   const schedule = Array.isArray(booking.paymentSchedule) ? booking.paymentSchedule : [];
   const reference = String(booking.reference || params.bookingId);
   const totalAmount = numberValue(booking.totalAmount ?? booking.bookingSelections?.finalAmount);
-  const paymentAmount = initialPaymentAmount(booking, schedule);
-  const remainingBalance = numberValue(booking.balance ?? Math.max(0, totalAmount - paymentAmount));
+  const verifiedPayments: FirebaseFirestore.DocumentData[] = paymentSnapshot.docs
+    .map((doc): FirebaseFirestore.DocumentData => ({ id: doc.id, ...(doc.data() as FirebaseFirestore.DocumentData) }))
+    .filter((payment) => ["verified", "paid"].includes(normalizedStatus(payment.status)))
+    .sort((left, right) => paymentTimestamp(right.updatedAt || right.createdAt) - paymentTimestamp(left.updatedAt || left.createdAt));
+  const latestVerifiedPayment = verifiedPayments[0];
+  const totalPaid = verifiedPayments.reduce((sum, payment) => sum + numberValue(payment.amountSubmitted || payment.amountExpected), 0);
+  const paymentAmount = latestVerifiedPayment
+    ? numberValue(latestVerifiedPayment.amountSubmitted || latestVerifiedPayment.amountExpected)
+    : initialPaymentAmount(booking, schedule);
+  const remainingBalance = Math.max(0, totalAmount - totalPaid);
   const departureDate = String(booking.bookingSelections?.selectedDeparture?.startDate || booking.departureDate || "");
   const bookingUrl = publicAppUrl(`/dashboard/bookings/${encodeURIComponent(reference)}`, request);
 
-  const result = await sendBookingReceivedEmail({
-    firstName: String(booking.groupContact?.firstName || "there"),
-    bookingReference: reference,
-    packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
-    departureDate: dateLabel(departureDate),
-    guestCount: Array.isArray(booking.guests) ? booking.guests.length : numberValue(booking.bookingSelections?.pax),
-    totalAmount: formatPeso(totalAmount),
-    paymentAmount: formatPeso(paymentAmount),
-    remainingBalance: formatPeso(remainingBalance),
-    paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
-    bookingUrl,
-  }, {
-    recipient,
-    subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,
-    relatedEntityType: "booking",
-    relatedEntityId: params.bookingId,
-    relatedReference: reference,
-  });
+  const result = booking.status === "CONFIRMED"
+    ? await sendBookingConfirmedEmail({
+      firstName: String(booking.groupContact?.firstName || "there"),
+      bookingReference: reference,
+      packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
+      paymentName: String(latestVerifiedPayment?.paymentName || latestVerifiedPayment?.label || "Verified Payment"),
+      paymentAmount: formatPeso(paymentAmount),
+      paymentMethod: String(latestVerifiedPayment?.method || booking.paymentInfo?.method || "To be verified"),
+      paymentDate: latestVerifiedPayment?.paymentDate ? formatDate(String(latestVerifiedPayment.paymentDate)) : formatDate(new Date().toISOString()),
+      totalAmount: formatPeso(totalAmount),
+      totalPaid: formatPeso(totalPaid),
+      remainingBalance: formatPeso(remainingBalance),
+      bookingUrl,
+    }, {
+      recipient,
+      subject: `${emailTemplateSubjects.BOOKING_CONFIRMED} - ${reference}`,
+      relatedEntityType: "booking",
+      relatedEntityId: params.bookingId,
+      relatedReference: reference,
+    })
+    : await sendBookingReceivedEmail({
+      firstName: String(booking.groupContact?.firstName || "there"),
+      bookingReference: reference,
+      packageName: String(booking.packageTitle || pkg?.title || booking.packageSlug || booking.packageId || "Tour Package"),
+      departureDate: dateLabel(departureDate),
+      guestCount: Array.isArray(booking.guests) ? booking.guests.length : numberValue(booking.bookingSelections?.pax),
+      totalAmount: formatPeso(totalAmount),
+      paymentAmount: formatPeso(paymentAmount),
+      remainingBalance: formatPeso(remainingBalance),
+      paymentMethod: String(booking.paymentInfo?.method || "To be verified"),
+      bookingUrl,
+    }, {
+      recipient,
+      subject: `${emailTemplateSubjects.BOOKING_RECEIVED} - ${reference}`,
+      relatedEntityType: "booking",
+      relatedEntityId: params.bookingId,
+      relatedReference: reference,
+    });
 
   if (!result.ok) {
     return NextResponse.json({ error: safeSendError(result.error) }, { status: 500 });
